@@ -38,6 +38,27 @@
 
 using namespace std;
 
+// Run a DSP with a GUI
+static void runAudio(dsp* dsp, const char* name, int argc, char* argv[])
+{
+    // Allocate audio driver
+    jackaudio audio;
+    audio.init("Test", dsp);
+    
+    // Create GUI
+    GTKUI gtk_ui = GTKUI((char*)name, &argc, &argv);
+    dsp->buildUserInterface(&gtk_ui);
+    
+    // Start real-time processing
+    audio.start();
+    
+    // Start GUI
+    gtk_ui.run();
+    
+    // Cleanup
+    audio.stop();
+}
+
 /**
  * Return the current runtime sample rate.
  *
@@ -45,7 +66,7 @@ using namespace std;
  *
  * @return the current runtime sample rate.
  */
-inline Box getSampleRate()
+inline Box SR()
 {
     return boxMin(boxReal(192000.0), boxMax(boxReal(1.0), boxFConst(SType::kSInt, "fSamplingFreq", "<math.h>")));
 }
@@ -57,9 +78,17 @@ inline Box getSampleRate()
  *
  * @return the current runtime buffer size.
  */
-inline Box getBufferSize()
+inline Box BS()
 {
     return boxFVar(SType::kSInt, "count", "<math.h>");
+}
+
+/**
+ * Creates a foreign function*
+ */
+inline Box SINH()
+{
+    return boxFFun(SType::kSReal, {"sinhf", "sinh", "sinhl", "sinhfx"}, { SType::kSReal }, "<FOO.h>",  "");
 }
 
 #define COMPILER(exp)    \
@@ -69,16 +98,24 @@ inline Box getBufferSize()
     destroyLibContext(); \
 }                        \
     
-static void compile(const string& name, Box box, int argc = 0, const char* argv[] = nullptr)
+static void compile(const string& name_app, Box box, int argc = 0, const char* argv[] = nullptr)
 {
-    string error_msg;
-    dsp_factory_base* factory = createCPPDSPFactoryFromBoxes(name, box, argc, argv, error_msg);
-    if (factory) {
-        factory->write(&cout);
-        delete(factory);
+    string error_msg, source = createSourceFromBoxes(name_app, box, "cpp", argc, argv, error_msg);
+    if (source != "") {
+        cout << source;
     } else {
         cerr << error_msg;
     }
+}
+
+// process = ffunction(float sinhf|sinh|sinhl|sinhfx(float), <math.h>, "");
+
+static void test0()
+{
+    COMPILER
+    (
+        compile("test0", SINH());
+    )
 }
 
 // process = 7,3.14;
@@ -163,10 +200,11 @@ static void test7()
     createLibContext();
     Box box = boxDelay(boxWire(), boxInt(7));
      
-    compile("test7", box, 3, (const char* []){ "-vec", "-lv", "1" });
+    // Vector compilation
+    const char* argv[] = { "-vec", "-lv", "1" };
+    compile("test7", box, 3, argv);
     destroyLibContext();
 }
-
 
 // process = _ <: @(500) + 0.5, @(3000) * 1.5;
 
@@ -244,7 +282,7 @@ static void test11()
 {
     COMPILER
     (
-        Box box = boxPar(getSampleRate(), getBufferSize());
+        Box box = boxPar(SR(), BS());
      
         compile("test11", box);
     )
@@ -321,7 +359,7 @@ static Box decimalpart()
 
 static Box phasor(Box f)
 {
-    return boxSeq(boxDiv(f, getSampleRate()), boxRec(boxSplit(boxAdd(), decimalpart()), boxWire()));
+    return boxSeq(boxDiv(f, SR()), boxRec(boxSplit(boxAdd(), decimalpart()), boxWire()));
 }
 
 static void test16()
@@ -410,88 +448,67 @@ static void test20()
 // Using the LLVM backend.
 static void test21(int argc, char* argv[])
 {
+    cout << "test21\n";
+    string error_msg;
+    llvm_dsp_factory* factory = nullptr;
+    
     createLibContext();
     {
         Box sl1 = boxVSlider("h:Oscillator/Freq1", boxReal(300), boxReal(100), boxReal(2000), boxReal(0.01));
         Box sl2 = boxVSlider("h:Oscillator/Freq2", boxReal(300), boxReal(100), boxReal(2000), boxReal(0.01));
-        Box box = boxPar(osc(sl1), osc(sl2));
+        Box group = boxPar(osc(sl1), osc(sl2));
+        Box box = boxVGroup("test21", group);
         
-        string error_msg;
-        llvm_dsp_factory* factory = createDSPFactoryFromBoxes("FaustDSP", box, 0, nullptr, "", error_msg);
-        
-        if (factory) {
-            dsp* dsp = factory->createDSPInstance();
-            assert(dsp);
-            
-            // Allocate audio driver
-            jackaudio audio;
-            audio.init("Test", dsp);
-            
-            // Create GUI
-            GTKUI gtk_ui = GTKUI((char*)"Organ", &argc, &argv);
-            dsp->buildUserInterface(&gtk_ui);
-            
-            // Start real-time processing
-            audio.start();
-            
-            // Start GUI
-            gtk_ui.run();
-            
-            // Cleanup
-            audio.stop();
-            delete dsp;
-            deleteDSPFactory(factory);
-        } else {
-            cerr << "Cannot create factory" << error_msg << endl;
-        }
+        factory = createDSPFactoryFromBoxes("FaustDSP", box, 0, nullptr, "", error_msg);
     }
     destroyLibContext();
+    
+    // The factory can be used outside of the createLibContext/destroyLibContext scope
+    if (factory) {
+        dsp* dsp = factory->createDSPInstance();
+        assert(dsp);
+        runAudio(dsp, "Organ", argc, argv);
+        delete dsp;
+        deleteDSPFactory(factory);
+    } else {
+        cerr << "Cannot create factory" << error_msg << endl;
+    }
 }
 
 // Using the Interpreter backend.
 static void test22(int argc, char* argv[])
 {
+    cout << "test22\n";
+    string error_msg;
+    interpreter_dsp_factory* factory = nullptr;
+    
     createLibContext();
     {
         Box sl1 = boxHSlider("v:Oscillator/Freq1", boxReal(300), boxReal(100), boxReal(2000), boxReal(0.01));
         Box sl2 = boxHSlider("v:Oscillator/Freq2", boxReal(300), boxReal(100), boxReal(2000), boxReal(0.01));
-        Box box = boxPar(osc(sl1), osc(sl2));
-        
-        string error_msg;
-        interpreter_dsp_factory* factory = createInterpreterDSPFactoryFromBoxes("FaustDSP", box, 0, nullptr, error_msg);
-        
-        if (factory) {
-            dsp* dsp = factory->createDSPInstance();
-            assert(dsp);
-            
-            // Allocate audio driver
-            jackaudio audio;
-            audio.init("Test", dsp);
-            
-            // Create GUI
-            GTKUI gtk_ui = GTKUI((char*)"Organ", &argc, &argv);
-            dsp->buildUserInterface(&gtk_ui);
-            
-            // Start real-time processing
-            audio.start();
-            
-            // Start GUI
-            gtk_ui.run();
-            
-            // Cleanup
-            audio.stop();
-            delete dsp;
-            deleteInterpreterDSPFactory(factory);
-        } else {
-            cerr << "Cannot create factory" << error_msg << endl;
-        }
+        Box group = boxPar(osc(sl1), osc(sl2));
+        Box box = boxHGroup("test22", group);
+ 
+        factory = createInterpreterDSPFactoryFromBoxes("FaustDSP", box, 0, nullptr, error_msg);
     }
     destroyLibContext();
-}
+    
+    // The factory can be used outside of the createLibContext/destroyLibContext scope
+    if (factory) {
+        dsp* dsp = factory->createDSPInstance();
+        assert(dsp);
+        runAudio(dsp, "Organ", argc, argv);
+        delete dsp;
+        deleteInterpreterDSPFactory(factory);
+    } else {
+        cerr << "Cannot create factory" << error_msg << endl;
+    }
+ }
 
 // Using the Interpreter backend.
 static void test23(int argc, char* argv[])
 {
+    cout << "test23\n";
     interpreter_dsp_factory* factory = nullptr;
     string error_msg;
     
@@ -501,10 +518,38 @@ static void test23(int argc, char* argv[])
                              boxReal(100), boxReal(2000), boxReal(0.01));
         Box sl2 = boxHSlider("v:Oscillator/Freq2", boxReal(300),
                              boxReal(100), boxReal(2000), boxReal(0.01));
-        Box box = boxPar(osc(sl1), osc(sl2));
+        Box group = boxPar(osc(sl1), osc(sl2));
+        Box box = boxTGroup("test23", group);
+    
+        // Print the box
+        cout << "Print the box\n";
+        cout << printBox(box, false, INT_MAX);
+    
+        // Print the box in short form
+        cout << "Print the box in short form\n";
+        cout << printBox(box, false, 128);
+    
+        // Print the box in shared mode
+        cout << "Print the box with shared identifiers\n";
+        cout << printBox(box, true, INT_MAX);
         
-        // Compile the 'bo'x to 'signals'
+        // Compile the 'box' to 'signals'
         tvec signals = boxesToSignals(box, error_msg);
+    
+        // Print the signals
+        cout << "Print the signals\n";
+        for (size_t i = 0; i < signals.size(); i++) {
+            cout << printSignal(signals[i], false, INT_MAX) << endl;
+        }
+        cout << "Print the signals in short form\n";
+        for (size_t i = 0; i < signals.size(); i++) {
+            cout << printSignal(signals[i], false, 128) << endl;
+        }
+        // Print the signals in shared mode
+        cout << "Print the signals in shared mode\n";
+        for (size_t i = 0; i < signals.size(); i++) {
+            cout << printSignal(signals[i], true, INT_MAX) << endl;
+        }
         
         // Then compile the 'signals' to a DSP factory
         factory = createInterpreterDSPFactoryFromSignals("FaustDSP",
@@ -513,27 +558,11 @@ static void test23(int argc, char* argv[])
     }
     destroyLibContext();
     
-    // Use factory outside of the createLibContext/destroyLibContext scope
+    // The factory can be used outside of the createLibContext/destroyLibContext scope
     if (factory) {
         dsp* dsp = factory->createDSPInstance();
         assert(dsp);
-        
-        // Allocate audio driver
-        jackaudio audio;
-        audio.init("Test", dsp);
-        
-        // Create GUI
-        GTKUI gtk_ui = GTKUI("Organ", &argc, &argv);
-        dsp->buildUserInterface(&gtk_ui);
-        
-        // Start real-time processing
-        audio.start();
-        
-        // Start GUI
-        gtk_ui.run();
-        
-        // Cleanup
-        audio.stop();
+        runAudio(dsp, "Organ", argc, argv);
         delete dsp;
         deleteInterpreterDSPFactory(factory);
     } else {
@@ -558,6 +587,7 @@ static void test23(int argc, char* argv[])
 // Simple polyphonic DSP.
 static void test24(int argc, char* argv[])
 {
+    cout << "test24\n";
     interpreter_dsp_factory* factory = nullptr;
     string error_msg;
     
@@ -575,7 +605,7 @@ static void test24(int argc, char* argv[])
     }
     destroyLibContext();
         
-    // Use factory outside of the createLibContext/destroyLibContext scope
+    // The factory can be used outside of the createLibContext/destroyLibContext scope
     if (factory) {
         dsp* dsp = factory->createDSPInstance();
         assert(dsp);
@@ -588,7 +618,7 @@ static void test24(int argc, char* argv[])
         audio.init("Organ", dsp);
         
         // Create GUI
-        GTKUI gtk_ui = GTKUI((char*)"Organ", &argc, &argv);
+        GTKUI gtk_ui = GTKUI((char*)"Organ", &argc, (char***)&argv);
         dsp->buildUserInterface(&gtk_ui);
         
         // Create MIDI controller
@@ -613,11 +643,82 @@ static void test24(int argc, char* argv[])
     }
 }
 
+// Compile a complete DSP program to a box expression, then to a source string
+// in several target languages
+static void test25()
+{
+    cout << "test25\n";
+    vector<const char*> lang = { "c", "cpp", "cmajor", "codebox", "csharp", "dlang", "fir", "interp", "jax", "jsfx", "julia", "rust", "wast" };
+    // Context has to be created/destroyed each time
+    for (const auto& it : lang) {
+        createLibContext();
+        {
+            int inputs = 0;
+            int outputs = 0;
+            string error_msg;
+      
+            // Create the oscillator
+            Box osc = DSPToBoxes("FaustDSP", "import(\"stdfaust.lib\"); process = os.osc(440);", 0, nullptr, &inputs, &outputs, error_msg);
+            if (!osc) {
+                cerr << error_msg;
+                destroyLibContext();
+                return;
+            }
+        
+            // Compile it to the target language
+            string source = createSourceFromBoxes("FaustDSP", osc, it, 0, nullptr, error_msg);
+            if (source != "") {
+                cout << source;
+            } else {
+                cerr << error_msg;
+            }
+        }
+        destroyLibContext();
+    }
+}
+
+// Compile a complete DSP program to a box expression, then use the result in another expression
+static void test26()
+{
+    cout << "test26\n";
+    createLibContext();
+    {
+        int inputs = 0;
+        int outputs = 0;
+        string error_msg;
+        
+        // Create the filter without parameter
+        Box filter = DSPToBoxes("FaustDSP", "import(\"stdfaust.lib\"); process = fi.lowpass(5);", 0, nullptr, &inputs, &outputs, error_msg);
+        if (!filter) {
+            cerr << error_msg;
+            destroyLibContext();
+            return;
+        }
+        // Create the filter parameters and connect
+        Box cutoff = boxHSlider("cutoff", boxReal(300), boxReal(100), boxReal(2000), boxReal(0.01));
+        Box cutoffAndInput = boxPar(cutoff, boxWire());
+        Box filteredInput = boxSeq(cutoffAndInput, filter);
+    
+        getBoxType(filteredInput, &inputs, &outputs);
+        std::cout << "getBoxType inputs: " << inputs << " outputs: " << outputs << std::endl;
+    
+        // Compile it
+        string source = createSourceFromBoxes("FaustDSP", filteredInput, "cpp", 0, nullptr, error_msg);
+        if (source != "") {
+            cout << source;
+        } else {
+            cerr << error_msg;
+        }
+    }
+    destroyLibContext();
+}
+
 list<GUI*> GUI::fGuiList;
 ztimedmap GUI::gTimedZoneMap;
 
 int main(int argc, char* argv[])
 {
+    test0();
     test1();
     test2();
     test3();
@@ -640,6 +741,12 @@ int main(int argc, char* argv[])
     test18();
     test19();
     test20();
+    
+    // Test 'DSPToBoxes' API (1)
+    test25();
+    
+    // Test 'DSPToBoxes/createSourceFromBoxes' API (2)
+    test26();
     
     // Test with audio, GUI and LLVM backend
     test21(argc, argv);

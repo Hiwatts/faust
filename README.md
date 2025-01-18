@@ -2,30 +2,25 @@
 
 ## Grame, Centre National de Creation Musicale: <https://www.grame.fr>
 
-<!-- 
-master : [![Build Status](https://travis-ci.org/grame-cncm/faust.svg?branch=master)](https://travis-ci.org/grame-cncm/faust)
-master-dev : [![Build Status](https://travis-ci.org/grame-cncm/faust.svg?branch=master-dev)](https://travis-ci.org/grame-cncm/faust)![C/C++ CI](https://github.com/grame-cncm/faust/workflows/C/C++%20CI/badge.svg)
- -->
-
 Build status: [![Ubuntu](https://github.com/grame-cncm/faust/actions/workflows/ubuntu.yml/badge.svg)](https://github.com/grame-cncm/faust/actions/workflows/ubuntu.yml) [![MacOS](https://github.com/grame-cncm/faust/actions/workflows/macos.yml/badge.svg)](https://github.com/grame-cncm/faust/actions/workflows/macos.yml) [![Windows](https://github.com/grame-cncm/faust/actions/workflows/windows.yml/badge.svg)](https://github.com/grame-cncm/faust/actions/workflows/windows.yml)
 
 ## Introduction
 
-Faust (Functional Audio Stream) is a functional programming language specifically designed for real-time signal processing and synthesis. A distinctive characteristic of Faust is to be fully compiled.
+Faust (Functional Audio Stream) is a functional programming language specifically designed for real-time signal processing and synthesis. A distinctive characteristic of Faust is that it is fully compiled.
 
-The Faust compiler translates DSP specifications into very efficient code for various languages (C++, C, JAVA, LLVM IR, WebAssembly etc.) working at sample level. It targets high-performance signal processing applications, libraries and audio plug-ins for a variety of audio platforms and standards. A same Faust specification can be used to easily generate various kinds of native standalone applications, iOS and Android apps, as well as Csound, LADSPA, Max/MSP, PD, Q, SuperCollider, VST, AU plugins, etc. (see the README in the `/architecture` folder for an exhaustive list).
+The Faust compiler translates DSP specifications into very efficient code for various languages (C++, C, JAVA, LLVM IR, WebAssembly etc.) working at sample level. It targets high-performance signal processing applications, libraries, and audio plug-ins for a variety of audio platforms and standards. A same Faust specification can be used to easily generate various kinds of native standalone applications, iOS and Android apps, as well as Csound, LADSPA, Max/MSP, PD, Q, SuperCollider, VST, AU plugins, etc. (see the README in the `/architecture` folder for an exhaustive list).
 
 While there are Faust contributors everywhere across the globe, Faust is mainly being developed at Grame, Centre National de Creation Musicale (<https://www.grame.fr>), its birthplace.
 
 ## Versions and Branches
 
-The Faust distribution can be downloaded on the Faust Github repository: <https://github.com/grame-cncm/faust>. Official releases packages are also available here: <https://github.com/grame-cncm/faust/releases>.
+The Faust distribution can be downloaded on the Faust Github repository: <https://github.com/grame-cncm/faust>. Official release packages are also available here: <https://github.com/grame-cncm/faust/releases>.
 
 In the following subsections, details about the branches of the repository are given.
 
 ### `master`
 
-`master` is the main Faust branch. It can compile in different languages: C, C++, JAVA, LLVM IR, WebAssembly etc. Thanks to its ability to generate LLVM IR and by using LLVM JIT, Faust is "embeddable" in any C++ program through a library called `libfaust`. Faust is needed by some sister projects of Faust such as FaustLive, FaucK, faustgen~, etc.
+`master` is the main Faust branch. It can compile in different languages: C, C++, JAVA, LLVM IR, WebAssembly etc. Thanks to its ability to generate LLVM IR and by using LLVM JIT, Faust is "embeddable" in any C++ program through a library called `libfaust`, which is needed by some sister projects of Faust such as FaustLive, FaucK, faustgen~, etc.
 
 ### `master-dev` (Preferred Development Branch)
 
@@ -51,13 +46,23 @@ This is an overview of the content of the top-level folders of the Faust distrib
 	tools/                 : additional easy-to-use scripts (faust2...) to produce binaries and plugins
 	windows/               : Windows related resources
 
-## Libraries
+## Libraries and additional dependencies
 
-Faust libraries are now in a [separated project](https://github.com/grame-cncm/faustlibraries) and included as a git submodule. We also include oboe (https://github.com/google/oboe) as submodule in two different places: architecture/android/app/oboe and architecture/smartkeyboard/app/oboe. These submodules are synchronized from time to time in the main Faust repository using the following commands:
+Faust libraries are now in a [separated project](https://github.com/grame-cncm/faustlibraries) and included as a git submodule. 
+
+The [oboe](https://github.com/google/oboe) project is included as submodule in two different places: `architecture/android/app/oboe` and `architecture/smartkeyboard/app/oboe`. 
+
+The [faust2ck](https://github.com/ccrma/faust2ck) project is included as submodule in `tools/faust2ck`. 
+
+The [py2max](https://github.com/shakfu/py2max) project is also included as submodule in `architecture/max-msp/py2max`. 
+
+The [node-matcher-plugin](https://github.com/nuchi/node-matcher-plugin) project is also included as submodule in `node-matcher-plugin`. 
+
+These submodules are synchronized from time to time in the main Faust repository using the following commands:
 
     git submodule update --remote --merge
-    git add libraries architecture/android/app/oboe architecture/smartKeyboard/android/app/oboe
-    git commit -m "Faust updated to the latest version of the libraries and oboe."
+    git add libraries tools/faust2ck architecture/android/app/oboe architecture/smartKeyboard/android/app/oboe architecture/max-msp/py2max node-matcher-plugin
+    git commit -m "Faust updated to the latest version of the libraries, faust2ck, oboe, py2max, node-matcher-plugin"
     git push
 
 Or to synchronize the *libraries* folder only:
@@ -65,6 +70,27 @@ Or to synchronize the *libraries* folder only:
     git submodule update --remote --merge libraries
     git add libraries 
     git commit -m "Faust updated to the latest version of libraries."
+    git push
+    
+Or to synchronize the *faust2ck* folder only:
+
+    git submodule update --remote --merge tools/faust2ck
+    git add tools/faust2ck 
+    git commit -m "Faust updated to the latest version of faust2ck."
+    git push
+
+Or to synchronize the *py2max* folder only (note that current used stable py2max version is v0.1.1):
+
+    git submodule update --remote --merge architecture/max-msp/py2max
+    git add architecture/max-msp/py2max 
+    git commit -m "Faust updated to the latest version of py2max."
+    git push
+    
+Or to synchronize the *node-matcher-plugin* folder only:
+
+    git submodule update --remote --merge node-matcher-plugin
+    git add node-matcher-plugin
+    git commit -m "Faust updated to the latest version of node-matcher-plugin."
     git push
 
 ## Compilation and Installation
@@ -81,7 +107,7 @@ The [Online Faust Editor](https://fausteditor.grame.fr) is a zero-conf tool that
 
 ### Online Faust IDE
 
-The [Online Faust IDE](https://faustide.grame.fr)  is a zero-conf tool that provides all the compilation services, including binaries generation for all the supported platforms and architectures, but also various utilities for signal processing development.
+The [Online Faust IDE](https://faustide.grame.fr) is a zero-conf tool that provides all the compilation services, including binaries generation for all the supported platforms and architectures, but also various utilities for signal processing development.
 
 ### Faust Playground
 
@@ -89,7 +115,7 @@ The [Online Faust IDE](https://faustide.grame.fr)  is a zero-conf tool that prov
 
 ### FaustLive
 
-[FaustLive](https://github.com/grame-cncm/faustlive) is a program that was designed to facilitate the prototyping of Faust codes. It embeds the LLVM on-the-fly compiler of Faust2 allowing you to very rapidly compile Faust codes on your computer. Binaries and installation packages of FaustLive are available for [Linux, Windows and OSX](https://github.com/grame-cncm/faustlive/releases).
+[FaustLive](https://github.com/grame-cncm/faustlive) is a program that was designed to facilitate the prototyping of Faust codes. It embeds the LLVM powered dynamic libfaust compiler allowing you to very rapidly compile Faust codes on your computer. Binaries and installation packages of FaustLive are available for [Linux, Windows and OSX](https://github.com/grame-cncm/faustlive/releases).
 
 ### `faust2...` Scripts and Programs
 
@@ -146,7 +172,7 @@ Obviously, the corresponding dependencies for each of them must be installed on 
 * The [Faust online course](https://ccrma.stanford.edu/~rmichon/faustWorkshops/course2015/) or the [Faust Hero in 2 Hours tutorial](https://ccrma.stanford.edu/~rmichon/faustTutorials/#faust-hero-in-2-hours) might be good starting points for beginners.
 * [Julius Smith's website](https://ccrma.stanford.edu/~jos) is an incredible resource on various topics around DSP and Faust.
 
-## Acknowledgments
+## Acknowledgements
 
 Many persons have been contributing to the Faust project by
 providing code for the compiler, architecture files, libraries,

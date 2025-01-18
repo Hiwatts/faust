@@ -4,16 +4,16 @@
     Copyright (C) 2003-2018 GRAME, Centre National de Creation Musicale
     ---------------------------------------------------------------------
     This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation; either version 2.1 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+    GNU Lesser General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
+    You should have received a copy of the GNU Lesser General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -36,7 +36,7 @@
 using namespace std;
 
 /**
- * Extracts metdata from a label : 'vol [unit: dB]' -> 'vol' + metadata
+ * Extracts metadata from a label : 'vol [unit: dB]' -> 'vol' + metadata
  */
 void extractMetadata(const string& fulllabel, string& label, map<string, set<string>>& metadata)
 {
@@ -144,26 +144,36 @@ void extractMetadata(const string& fulllabel, string& label, map<string, set<str
             default: {
                 stringstream error;
                 error << "ERROR unrecognized state " << state << endl;
-                gGlobal->gErrorMsg = error.str();
+                gGlobal->gErrorMessage = error.str();
             }
         }
     }
     label = rmWhiteSpaces(label);
 }
 
+/**
+ * Extracts metadata from a label : 'vol [unit: dB]' -> 'vol' + metadata
+ */
+std::string removeMetadata(const string& fulllabel)
+{
+    map<string, set<string>> metadata;
+    string                   label;
+    extractMetadata(fulllabel, label, metadata);
+    return label;
+}
+
 //------------------------ specific schema -------------------------
 
-string extractName(Tree fulllabel)
+string extractName(Tree full_label)
 {
     string                   name;
     map<string, set<string>> metadata;
-
-    extractMetadata(tree2str(fulllabel), name, metadata);
+    extractMetadata(tree2str(full_label), name, metadata);
     return name;
 }
 
 /**
- * removes enclosing quotes and transforms '<', '>' and '&' characters
+ * Removes enclosing quotes and transforms '<', '>' and '&' characters
  */
 static string xmlize(const string& fullsrc)
 {
@@ -279,10 +289,24 @@ void Description::print(int n, ostream& fout)
 
     tab(n + 2, fout);
 
+    // soundfile widget list
+    tab(n + 2, fout);
+    fout << "<soundfilewidgets>";
+    tab(n + 3, fout);
+    fout << "<count>" << fSFWidgetCount << "</count>";
+    for (const auto& s : fSFLines) {
+        tab(n + 3, fout);
+        fout << s;
+    }
+    tab(n + 2, fout);
+    fout << "</soundfilewidgets>";
+
+    tab(n + 2, fout);
+
     // widget layout
     tab(n + 2, fout);
     fout << "<layout>";
-    list<int>::iterator t;
+    list<int>::iterator    t;
     list<string>::iterator s;
     for (t = fLayoutTabs.begin(), s = fLayoutLines.begin(); s != fLayoutLines.end(); t++, s++) {
         tab(n + 3 + *t, fout);
@@ -312,7 +336,8 @@ void Description::addGroup(int level, Tree t)
         const int orient = tree2int(left(label));
 
         addLayoutLine(level, subst("<group type=\"$0\">", groupnames[orient]));
-        addLayoutLine(level + 1, subst("<label>$0</label>", checkNullLabel(t, xmlize(tree2str(right(label))), false)));
+        addLayoutLine(level + 1, subst("<label>$0</label>",
+                                       checkNullLabel(t, xmlize(tree2str(right(label))))));
         while (!isNil(elements)) {
             addGroup(level + 1, right(hd(elements)));
             elements = tl(elements);
@@ -324,14 +349,17 @@ void Description::addGroup(int level, Tree t)
         addLayoutLine(level, subst("<widgetref id=\"$0\" />", T(w)));
 
     } else {
-        throw faustexception("ERROR in user interface generation\n");
+        cerr << "ASSERT : user interface generation\n";
+        faustassert(false);
     }
 }
 
 void Description::tab(int n, ostream& fout)
 {
     fout << '\n';
-    while (n--) fout << '\t';
+    while (n--) {
+        fout << '\t';
+    }
 }
 
 int Description::addWidget(Tree label, Tree varname, Tree sig)
@@ -344,7 +372,7 @@ int Description::addWidget(Tree label, Tree varname, Tree sig)
         fWidgetID++;
         fActiveWidgetCount++;
         addActiveLine(subst("<widget type=\"button\" id=\"$0\">", T(fWidgetID)));
-        addActiveLine(subst("\t<label>$0</label>", checkNullLabel(sig, xmlize(tree2str(label)), true)));
+        addActiveLine(subst("\t<label>$0</label>", checkNullLabel(sig, xmlize(tree2str(label)))));
         addActiveLine(subst("\t<varname>$0</varname>", tree2str(varname)));
         addActiveMetadata(label);
         addActiveLine("</widget>");
@@ -353,7 +381,7 @@ int Description::addWidget(Tree label, Tree varname, Tree sig)
         fWidgetID++;
         fActiveWidgetCount++;
         addActiveLine(subst("<widget type=\"checkbox\" id=\"$0\">", T(fWidgetID)));
-        addActiveLine(subst("\t<label>$0</label>", checkNullLabel(sig, xmlize(tree2str(label)), true)));
+        addActiveLine(subst("\t<label>$0</label>", checkNullLabel(sig, xmlize(tree2str(label)))));
         addActiveLine(subst("\t<varname>$0</varname>", tree2str(varname)));
         addActiveMetadata(label);
         addActiveLine("</widget>");
@@ -362,7 +390,7 @@ int Description::addWidget(Tree label, Tree varname, Tree sig)
         fWidgetID++;
         fActiveWidgetCount++;
         addActiveLine(subst("<widget type=\"vslider\" id=\"$0\">", T(fWidgetID)));
-        addActiveLine(subst("\t<label>$0</label>", checkNullLabel(sig, xmlize(tree2str(label)), true)));
+        addActiveLine(subst("\t<label>$0</label>", checkNullLabel(sig, xmlize(tree2str(label)))));
         addActiveLine(subst("\t<varname>$0</varname>", tree2str(varname)));
         addActiveLine(subst("\t<init>$0</init>", T(tree2double(c))));
         addActiveLine(subst("\t<min>$0</min>", T(tree2double(x))));
@@ -375,7 +403,7 @@ int Description::addWidget(Tree label, Tree varname, Tree sig)
         fWidgetID++;
         fActiveWidgetCount++;
         addActiveLine(subst("<widget type=\"hslider\" id=\"$0\">", T(fWidgetID)));
-        addActiveLine(subst("\t<label>$0</label>", checkNullLabel(sig, xmlize(tree2str(label)), true)));
+        addActiveLine(subst("\t<label>$0</label>", checkNullLabel(sig, xmlize(tree2str(label)))));
         addActiveLine(subst("\t<varname>$0</varname>", tree2str(varname)));
         addActiveLine(subst("\t<init>$0</init>", T(tree2double(c))));
         addActiveLine(subst("\t<min>$0</min>", T(tree2double(x))));
@@ -388,7 +416,7 @@ int Description::addWidget(Tree label, Tree varname, Tree sig)
         fWidgetID++;
         fActiveWidgetCount++;
         addActiveLine(subst("<widget type=\"nentry\" id=\"$0\">", T(fWidgetID)));
-        addActiveLine(subst("\t<label>$0</label>", checkNullLabel(sig, xmlize(tree2str(label)), true)));
+        addActiveLine(subst("\t<label>$0</label>", checkNullLabel(sig, xmlize(tree2str(label)))));
         addActiveLine(subst("\t<varname>$0</varname>", tree2str(varname)));
         addActiveLine(subst("\t<init>$0</init>", T(tree2double(c))));
         addActiveLine(subst("\t<min>$0</min>", T(tree2double(x))));
@@ -399,12 +427,12 @@ int Description::addWidget(Tree label, Tree varname, Tree sig)
 
     } else if (isSigSoundfile(sig, path)) {
         fWidgetID++;
-        fActiveWidgetCount++;
-        addActiveLine(subst("<widget type=\"soundfile\" id=\"$0\">", T(fWidgetID)));
-        addActiveLine(subst("\t<label>$0</label>", checkNullLabel(sig, xmlize(tree2str(label)), true)));
-        addActiveLine(subst("\t<varname>$0</varname>", tree2str(varname)));
-        addActiveMetadata(label);
-        addActiveLine("</widget>");
+        fSFWidgetCount++;
+        addSFLine(subst("<widget type=\"soundfile\" id=\"$0\">", T(fWidgetID)));
+        addSFLine(subst("\t<label>$0</label>", checkNullLabel(sig, xmlize(tree2str(label)))));
+        addSFLine(subst("\t<varname>$0</varname>", tree2str(varname)));
+        addSFMetadata(label);
+        addSFLine("</widget>");
 
         // add a passive widget description
 
@@ -412,7 +440,8 @@ int Description::addWidget(Tree label, Tree varname, Tree sig)
         fWidgetID++;
         fPassiveWidgetCount++;
         addPassiveLine(subst("<widget type=\"vbargraph\" id=\"$0\">", T(fWidgetID)));
-        addPassiveLine(subst("\t<label>$0</label>", checkNullLabel(sig, xmlize(tree2str(label)), true)));
+        addPassiveLine(
+            subst("\t<label>$0</label>", checkNullBargraphLabel(sig, xmlize(tree2str(label)), 0)));
         addPassiveLine(subst("\t<varname>$0</varname>", tree2str(varname)));
         addPassiveLine(subst("\t<min>$0</min>", T(tree2double(x))));
         addPassiveLine(subst("\t<max>$0</max>", T(tree2double(y))));
@@ -423,7 +452,8 @@ int Description::addWidget(Tree label, Tree varname, Tree sig)
         fWidgetID++;
         fPassiveWidgetCount++;
         addPassiveLine(subst("<widget type=\"hbargraph\" id=\"$0\">", T(fWidgetID)));
-        addPassiveLine(subst("\t<label>$0</label>", checkNullLabel(sig, xmlize(tree2str(label)), true)));
+        addPassiveLine(
+            subst("\t<label>$0</label>", checkNullBargraphLabel(sig, xmlize(tree2str(label)), 1)));
         addPassiveLine(subst("\t<varname>$0</varname>", tree2str(varname)));
         addPassiveLine(subst("\t<min>$0</min>", T(tree2double(x))));
         addPassiveLine(subst("\t<max>$0</max>", T(tree2double(y))));
@@ -431,7 +461,8 @@ int Description::addWidget(Tree label, Tree varname, Tree sig)
         addPassiveLine("</widget>");
 
     } else {
-        throw faustexception("ERROR describing widget : unrecognized expression\n");
+        cerr << "ASSERT : describing widget : unrecognized expression\n";
+        faustassert(false);
     }
 
     return fWidgetID;
@@ -439,24 +470,72 @@ int Description::addWidget(Tree label, Tree varname, Tree sig)
 
 void Description::addActiveMetadata(Tree label)
 {
-    map<string, set<string>>     metadata;
-    string                       shortLabel;
-    list<string>                 lines;
-  
+    map<string, set<string>> metadata;
+    string                   shortLabel;
+    list<string>             lines;
+
     extractMetadata(tree2str(label), shortLabel, metadata);
     lines = xmlOfMetadata(metadata, 1);
 
-    for (const auto& it : lines) fActiveLines.push_back(it);
+    for (const auto& it : lines) {
+        fActiveLines.push_back(it);
+    }
 }
 
 void Description::addPassiveMetadata(Tree label)
 {
-    map<string, set<string>>     metadata;
-    string                       shortLabel;
-    list<string>                 lines;
-  
+    map<string, set<string>> metadata;
+    string                   shortLabel;
+    list<string>             lines;
+
     extractMetadata(tree2str(label), shortLabel, metadata);
     lines = xmlOfMetadata(metadata, 1);
 
-    for (const auto& it : lines) fPassiveLines.push_back(it);
+    for (const auto& it : lines) {
+        fPassiveLines.push_back(it);
+    }
+}
+
+void Description::addSFMetadata(Tree label)
+{
+    map<string, set<string>> metadata;
+    string                   shortLabel;
+    list<string>             lines;
+
+    extractMetadata(tree2str(label), shortLabel, metadata);
+    lines = xmlOfMetadata(metadata, 1);
+
+    for (const auto& it : lines) {
+        fSFLines.push_back(it);
+    }
+}
+
+void Description::printXML(int ins, int outs)
+{
+    ofstream xout(subst("$0.xml", gGlobal->makeDrawPath()).c_str());
+
+    for (const auto& it1 : gGlobal->gMetaDataSet) {
+        const string key = tree2str(it1.first);
+        for (const auto& it2 : it1.second) {
+            const string value = tree2str(it2);
+            if (key == "name") {
+                name(value);
+            } else if (key == "author") {
+                author(value);
+            } else if (key == "copyright") {
+                copyright(value);
+            } else if (key == "license") {
+                license(value);
+            } else if (key == "version") {
+                version(value);
+            } else {
+                declare(key, value);
+            }
+        }
+    }
+
+    className(gGlobal->gClassName);
+    inputs(ins);
+    outputs(outs);
+    print(0, xout);
 }

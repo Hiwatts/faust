@@ -4,14 +4,14 @@ FAUST compiler
 Copyright (C) 2003-2018 GRAME, Centre National de Creation Musicale
 ---------------------------------------------------------------------
 This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
+it under the terms of the GNU Lesser General Public License as published by
+the Free Software Foundation; either version 2.1 of the License, or
 (at your option) any later version.
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-You should have received a copy of the GNU General Public License
+GNU Lesser General Public License for more details.
+You should have received a copy of the GNU Lesser General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 ************************************************************************
@@ -24,9 +24,10 @@ Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 #include <sstream>
 #include <stdexcept>
 #ifndef WIN32
+#include <alloca.h>
 #include <unistd.h>
 #else
-//#include <io.h>
+// #include <io.h>
 #endif
 
 #if !defined(EMCC) && !defined(WIN32) && !defined(ANDROID) && !defined(ALPINE)
@@ -38,7 +39,10 @@ class faustexception : public std::runtime_error {
 #ifdef EMCC
     static const char* gJSExceptionMsg;
 
-    faustexception(const std::string& msg = "") : std::runtime_error(msg) { gJSExceptionMsg = strdup(msg.c_str()); }
+    faustexception(const std::string& msg = "") : std::runtime_error(msg)
+    {
+        gJSExceptionMsg = strdup(msg.c_str());
+    }
     faustexception(char* msg) : std::runtime_error(msg) { gJSExceptionMsg = strdup(msg); }
     faustexception(const char* msg) : std::runtime_error(msg) { gJSExceptionMsg = strdup(msg); }
 #else
@@ -55,9 +59,9 @@ class faustexception : public std::runtime_error {
 inline void stacktrace(std::stringstream& str, int val)
 {
 #if !defined(EMCC) && !defined(WIN32) && !defined(ANDROID) && !defined(ALPINE)
-    void*  callstack[val];
-    int    frames = backtrace(callstack, val);
-    char** strs   = backtrace_symbols(callstack, frames);
+    void** callstack = (void**)alloca(val * sizeof(void*));
+    int    frames    = backtrace(callstack, val);
+    char** strs      = backtrace_symbols(callstack, frames);
     str << "====== stack trace start ======\n";
     for (int i = 0; i < frames; ++i) {
         str << strs[i] << "\n";
@@ -67,7 +71,7 @@ inline void stacktrace(std::stringstream& str, int val)
 #endif
 }
 
-#define faustassert(cond) faustassertaux((cond), __FILE__, __LINE__)
 void faustassertaux(bool cond, const std::string& file, int line);
+#define faustassert(cond) faustassertaux((cond), __FILE__, __LINE__)
 
 #endif

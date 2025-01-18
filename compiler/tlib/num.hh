@@ -4,16 +4,16 @@
     Copyright (C) 2003-2018 GRAME, Centre National de Creation Musicale
     ---------------------------------------------------------------------
     This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation; either version 2.1 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+    GNU Lesser General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
+    You should have received a copy of the GNU Lesser General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -29,14 +29,14 @@ this header file.
 
  API:
  ----
-    num(10);				: num with int content
-    num(3.14159);			: num with double content
+    num(10);      : num with int content
+    num(3.14159); : num with double content
 
-    num op num				: op is any C binary operator
+    num op num    op is any C binary operator
 
-    type(num)				: 0 = int, 1 = double
-    int(num);				: int content of num or conversion
-    double(num);				: double content of num or conversion
+    type(num)     : 0 = int, 1 = double
+    int(num);     : int content of num or conversion
+    double(num);  : double content of num or conversion
 
  History :
  ---------
@@ -54,8 +54,8 @@ this header file.
 
 //-------------------------------------------------------------------------
 // Class num = (type x (int + double))
-//		type 0 -> int
-//		type 1 -> double
+//        type 0 -> int
+//        type 1 -> double
 //-------------------------------------------------------------------------
 
 class num : public virtual Garbageable {
@@ -70,7 +70,14 @@ class num : public virtual Garbageable {
     // constructors
     num(int x = 0) : fType(0) { fData.i = x; }
     num(double x) : fType(1) { fData.f = x; }
-    num(const num& n) : fType(n.fType) { fData.i = n.fData.i; }
+    num(const num& n) : fType(n.fType)
+    {
+        if (fType == 0) {
+            fData.i = n.fData.i;
+        } else {
+            fData.f = n.fData.f;
+        }
+    }
 
     num& operator=(int n)
     {
@@ -87,12 +94,38 @@ class num : public virtual Garbageable {
 
     // accessors
     int type() const { return fType; }
-    operator int() const { return (fType) ? int(fData.f) : fData.i; }
-    operator double() const { return (fType) ? fData.f : double(fData.i); }
+    operator int() const
+    {
+        if (fType == 0) {
+            return fData.i;
+        } else {
+            return static_cast<int>(fData.f);
+        }
+    }
+
+    operator double() const
+    {
+        if (fType == 0) {
+            return static_cast<double>(fData.i);
+        } else {
+            return fData.f;
+        }
+    }
 
     // predicats
-    bool operator==(const num& n) const { return fType == n.fType && fData.i == n.fData.i; }
-    bool operator!=(const num& n) const { return fType != n.fType || fData.i != n.fData.i; }
+    bool operator==(const num& n) const
+    {
+        if (fType != n.fType) {
+            return false;
+        }
+        if (fType == 0) {
+            return fData.i == n.fData.i;
+        } else {
+            return fData.f == n.fData.f;
+        }
+    }
+
+    bool operator!=(const num& n) const { return !(*this == n); }
 };
 
 inline int isfloat(const num& n)

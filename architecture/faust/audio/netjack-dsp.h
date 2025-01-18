@@ -40,7 +40,7 @@ class netjackaudio : public audio
 
     protected:
     
-        dsp* fDSP;
+        ::dsp* fDSP;
         jack_net_slave_t* fNet;
         int fNetFormat;
         std::string fMasterIP;
@@ -95,7 +95,7 @@ class netjackaudio : public audio
             return 0;
         }
 
-        bool initAux(const char* name, dsp* DSP, int audio_inputs, int audio_outputs, int midi_inputs, int midi_outputs)
+        bool initAux(const char* name, ::dsp* DSP, int audio_inputs, int audio_outputs, int midi_inputs, int midi_outputs)
         {
             if (initAux(name, audio_inputs, audio_outputs, midi_inputs, midi_outputs)) {
                 setDsp(DSP);
@@ -175,8 +175,8 @@ class netjackaudio : public audio
                      int latency,
                      int midi_in,
                      int midi_out)
-            : fDSP(0),
-            fNet(0),
+            : fDSP(nullptr),
+            fNet(nullptr),
             fNetFormat(net_format),
             fMasterIP(master_ip),
             fMasterPort(master_port),
@@ -194,7 +194,7 @@ class netjackaudio : public audio
             }
         }
 
-        virtual bool init(const char* name, dsp* DSP) 
+        virtual bool init(const char* name, ::dsp* DSP)
         {
             return initAux(name, DSP, DSP->getNumInputs(), DSP->getNumOutputs(), fMIDIInputs, fMIDIOutputs);
         }
@@ -220,7 +220,7 @@ class netjackaudio : public audio
             return jack_net_slave_is_active(fNet);
         }
 
-        void setDsp(dsp* DSP)
+        void setDsp(::dsp* DSP)
         {
             fDSP = DSP;
             fDSP->init(fResult.sample_rate);
@@ -238,7 +238,7 @@ class netjackaudio : public audio
 A special NetJack client that uses one more audio input/output to transmit control values.
 */
 
-class netjackaudio_control : public netjackaudio, public ControlUI {  
+class netjackaudio_control : public netjackaudio, public ControlUI {
         
     protected:
         
@@ -291,7 +291,7 @@ class netjackaudio_control : public netjackaudio, public ControlUI {
 A special NetJack client that uses MIDI input/output to transmit control values.
 */
 
-class netjackaudio_midicontrol : public netjackaudio, public ControlUI, public jack_midi {  
+class netjackaudio_midicontrol : public netjackaudio, public ControlUI, public jack_midi {
         
     protected:
         

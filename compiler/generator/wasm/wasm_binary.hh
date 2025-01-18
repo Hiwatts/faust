@@ -4,16 +4,16 @@
     Copyright (C) 2003-2018 GRAME, Centre National de Creation Musicale
     ---------------------------------------------------------------------
     This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation; either version 2.1 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+    GNU Lesser General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
+    You should have received a copy of the GNU Lesser General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -28,8 +28,6 @@
 #include <vector>
 
 #include "exception.hh"
-
-using namespace std;
 
 // Type punning needs to be done through this function to avoid undefined
 // behavior: unions and reinterpret_cast aren't valid approaches.
@@ -52,7 +50,8 @@ struct LEB {
     {
         // for signed, we must ensure the last bit has the right sign, as it will zero extend
         return std::is_signed<T>::value
-                   ? (temp != 0 && temp != T(-1)) || (value >= 0 && (byte & 64)) || (value < 0 && !(byte & 64))
+                   ? (temp != 0 && temp != T(-1)) || (value >= 0 && (byte & 64)) ||
+                         (value < 0 && !(byte & 64))
                    : (temp != 0);
     }
 
@@ -100,15 +99,18 @@ struct LEB {
             T    payload = byte & 127;
 
             typedef typename std::make_unsigned<T>::type mask_type;
-            auto shift_mask          = 0 == shift ? ~mask_type(0) : ((mask_type(1) << (sizeof(T) * 8 - shift)) - 1u);
-            T    significant_payload = payload & shift_mask;
+            auto                                         shift_mask =
+                0 == shift ? ~mask_type(0) : ((mask_type(1) << (sizeof(T) * 8 - shift)) - 1u);
+            T significant_payload = payload & shift_mask;
             if (significant_payload != payload) {
                 if (!(std::is_signed<T>::value && last)) {
                     throw faustexception("LEB dropped bits only valid for signed LEB");
                 }
             }
             value |= significant_payload << shift;
-            if (last) break;
+            if (last) {
+                break;
+            }
             shift += 7;
             if (size_t(shift) >= sizeof(T) * 8) {
                 throw faustexception("LEB overflow");
@@ -185,24 +187,24 @@ enum ASTNodes {
     If          = 0x04,
     Else        = 0x05,
 
-    End         = 0x0b,
-    Br          = 0x0c,
-    BrIf        = 0x0d,
-    BrTable     = 0x0e,
-    Return      = 0x0f,
+    End     = 0x0b,
+    Br      = 0x0c,
+    BrIf    = 0x0d,
+    BrTable = 0x0e,
+    Return  = 0x0f,
 
-    CallFunction = 0x10,
-    CallIndirect = 0x11,
+    CallFunction    = 0x10,
+    CallIndirect    = 0x11,
     RetCallFunction = 0x12,
     RetCallIndirect = 0x13,
 
-    Drop   = 0x1a,
-    Select = 0x1b,
-    SelectWithType = 0x1c, // added in reference types proposal
+    Drop           = 0x1a,
+    Select         = 0x1b,
+    SelectWithType = 0x1c,  // added in reference types proposal
 
-    LocalGet = 0x20,
-    LocalSet = 0x21,
-    LocalTee = 0x22,
+    LocalGet  = 0x20,
+    LocalSet  = 0x21,
+    LocalTee  = 0x22,
     GlobalGet = 0x23,
     GlobalSet = 0x24,
 

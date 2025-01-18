@@ -4,16 +4,16 @@
     Copyright (C) 2003-2018 GRAME, Centre National de Creation Musicale
     ---------------------------------------------------------------------
     This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation; either version 2.1 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+    GNU Lesser General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
+    You should have received a copy of the GNU Lesser General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -22,6 +22,7 @@
 #ifndef __SIGVISITOR__
 #define __SIGVISITOR__
 
+#include "global.hh"
 #include "signals.hh"
 
 struct sigvisitor {
@@ -36,6 +37,7 @@ struct sigvisitor {
     //---------------abstract methods---------------
     // numbers
     virtual void visitInt(Tree sig, int i)     = 0;
+    virtual void visitInt64(Tree sig, int i)   = 0;
     virtual void visitReal(Tree sig, double r) = 0;
 
     // audio inputs-outputs
@@ -43,13 +45,14 @@ struct sigvisitor {
     virtual void visitOutput(Tree sig, int i, Tree s) = 0;
 
     // fixed size delays
-    virtual void visitDelay1(Tree sig, Tree s)             = 0;
-    virtual void visitPrefix(Tree sig, Tree s1, Tree s2)   = 0;
-    virtual void visitDelay(Tree sig, Tree s1, Tree s2) = 0;
+    virtual void visitDelay1(Tree sig, Tree s)           = 0;
+    virtual void visitPrefix(Tree sig, Tree s1, Tree s2) = 0;
+    virtual void visitDelay(Tree sig, Tree s1, Tree s2)  = 0;
 
     // numerical operations
     virtual void visitBinOp(Tree sig, int opcode, Tree s1, Tree s2)     = 0;
     virtual void visitIntCast(Tree sig, Tree s)                         = 0;
+    virtual void visitBitCast(Tree sig, Tree s)                         = 0;
     virtual void visitFloatCast(Tree sig, Tree s)                       = 0;
     virtual void visitFFun(Tree sig, Tree ff, Tree ls)                  = 0;
     virtual void visitFConst(Tree sig, Tree type, Tree name, Tree file) = 0;
@@ -83,7 +86,10 @@ struct sigvisitor {
     virtual void visitDocAccessTbl(Tree sig, Tree s1, Tree s2)                  = 0;
 
     // Selectors
-    virtual void visitSelect2(Tree sig, Tree sel, Tree s1, Tree s2)          = 0;
+    virtual void visitSelect2(Tree sig, Tree sel, Tree s1, Tree s2) = 0;
+
+    // Registers for FPGA retiming
+    virtual void visitRegister(Tree sig, int n, Tree s1) = 0;
 
     // Tuples
     virtual void visitTuple(Tree sig, int mod, Tree ls)        = 0;
@@ -117,6 +123,7 @@ struct fullvisitor : sigvisitor {
 
     // numerical operations
     virtual void visitIntCast(Tree sig, Tree s) { visit(s); }
+    virtual void visitBitCast(Tree sig, Tree s) { visit(s); }
     virtual void visitFloatCast(Tree sig, Tree s) { visit(s); }
     virtual void visitBinOp(Tree sig, int op, Tree s1, Tree s2)
     {
@@ -152,11 +159,15 @@ struct fullvisitor : sigvisitor {
         visit(s1);
         visit(s2);
     }
-    virtual void visitWRTbl(Tree sig, Tree id, Tree s1, Tree s2, Tree s3)
+    virtual void visitWRTbl(Tree sig, Tree id, Tree s1, Tree s2, Tree s3, Tree s4)
     {
         visit(s1);
         visit(s2);
-        visit(s3);
+        if (s3 != gGlobal->nil) {
+            // rwtable
+            visit(s3);
+            visit(s4);
+        }
     }
     virtual void visitRDTbl(Tree sig, Tree s1, Tree s2)
     {
@@ -172,6 +183,8 @@ struct fullvisitor : sigvisitor {
         visit(s1);
         visit(s2);
     }
+
+    virtual void visitRegister(Tree sig, int n, Tree s1) { visit(s1); }
 
     // Tuples
     virtual void visitTuple(Tree sig, int mod, Tree ls) { visit(ls); }

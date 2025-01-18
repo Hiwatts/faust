@@ -1,6 +1,6 @@
 # CMAKE oscpack
 project(OSCFaust)
-cmake_minimum_required(VERSION 3.4.0)
+cmake_minimum_required(VERSION 3.6.0)
 
 #######################################
 # versions management
@@ -95,6 +95,8 @@ if (NOT IOS AND OSCDYNAMIC)
 		OUTPUT_NAME OSCFaust)
 	if (WIN32 OR MSYS) 
 		target_link_libraries(oscdynamic ws2_32 winmm)
+	else()
+		target_link_libraries(oscdynamic pthread)
 	endif()
 	set (TARGETS ${TARGETS} oscdynamic)
 endif()

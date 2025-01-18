@@ -4,16 +4,16 @@
     Copyright (C) 2003-2018 GRAME, Centre National de Creation Musicale
     ---------------------------------------------------------------------
     This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation; either version 2.1 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+    GNU Lesser General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
+    You should have received a copy of the GNU Lesser General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -38,8 +38,8 @@ static double quantize(int n)
  * Computes the size of the box according to the length of the text
  * and the maximum number of ports.
  */
-schema* makeBlockSchema(unsigned int inputs, unsigned int outputs, const string& text, const string& color,
-                        const string& link)
+schema* makeBlockSchema(unsigned int inputs, unsigned int outputs, const string& text,
+                        const string& color, const string& link)
 {
     // determine the optimal size of the box
     double minimal = 3 * dWire;
@@ -55,13 +55,17 @@ schema* makeBlockSchema(unsigned int inputs, unsigned int outputs, const string&
  * The length of the text as well as th number of inputs and outputs
  * are used to compute the size of the blockSchema
  */
-blockSchema::blockSchema(unsigned int inputs, unsigned int outputs, double width, double height, const string& text,
-                         const string& color, const string& link)
+blockSchema::blockSchema(unsigned int inputs, unsigned int outputs, double width, double height,
+                         const string& text, const string& color, const string& link)
 
     : schema(inputs, outputs, width, height), fText(text), fColor(color), fLink(link)
 {
-    for (unsigned int i = 0; i < inputs; i++) fInputPoint.push_back(point(0, 0));
-    for (unsigned int i = 0; i < outputs; i++) fOutputPoint.push_back(point(0, 0));
+    for (unsigned int i = 0; i < inputs; i++) {
+        fInputPoint.push_back(point(0, 0));
+    }
+    for (unsigned int i = 0; i < outputs; i++) {
+        fOutputPoint.push_back(point(0, 0));
+    }
 }
 
 /**
@@ -170,7 +174,8 @@ void blockSchema::draw(device& dev)
  */
 void blockSchema::drawRectangle(device& dev)
 {
-    dev.rect(x() + dHorz, y() + dVert, width() - 2 * dHorz, height() - 2 * dVert, fColor.c_str(), fLink.c_str());
+    dev.rect(x() + dHorz, y() + dVert, width() - 2 * dHorz, height() - 2 * dVert, fColor.c_str(),
+             fLink.c_str());
 }
 
 /**

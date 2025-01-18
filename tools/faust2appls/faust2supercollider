@@ -4,7 +4,7 @@
 #####################################################################
 #                                                                   #
 #               Compiles Faust programs to supercollider            #
-#               (c) Grame, 2010                                     #
+#               (c) Grame, 2010-2023                                #
 #                                                                   #
 #####################################################################
 
@@ -16,10 +16,17 @@
 
 . faustpath
 . faustoptflags
+. usage.sh
 
 CXXFLAGS+=" $MYGCCFLAGS"  # So that additional CXXFLAGS can be used
+UNIVERSAL="0"
 
 ARCHFILE=$FAUSTARCH/supercollider.cpp
+
+SOUNDFILE="0"
+SOUNDFILEDEFS=""
+SOUNDFILEINC=""
+SOUNDFILELIBS=""
 
 #-------------------------------------------------------------------
 # Need SuperCollider 'plugin_interface' include path to compile UGens:
@@ -44,31 +51,26 @@ elif [ -d $SC4 ]; then
     SC=$SC4
 elif [ -d $SC5 ]; then
     SC=$SC5
-else 
-    echo "Can't find SuperCollider headers"
+else
+    echo "Can't find SuperCollider headers, try to set the $SUPERCOLLIDER_HEADERS variable with the appropriate path"
     exit 1
-fi 
+fi
 
 # Echo Using SC Headers in $SC
 
 INCLUDE="-I$SC/plugin_interface/ -I$SC/common/ -I$SC/server/ -I$FAUSTINC"
 
-if [ $# = 0 ]; then
-    echo USAGE:
-    echo "$0 [-d[ebug]] [-dm] [-sd] [-ks] [-sn] [-noprefix] file1.dsp [file2.dsp ...]"
-    exit 1
-fi
-
 #-------------------------------------------------------------------
 # Analyze command arguments :
 # faust options                 -> OPTIONS
-# if -omp : -openmp or -fopenmp -> OPENMP
 # if -d or -debug               -> F2SC_DEBUG
 # if -dm                        -> F2SC_DEBUG_MES
 # if -ks                        -> KEEP_SRC
 # if -noprefix                  -> NO_FAUST_PREFIX
 # if -sd or -synthdef           -> SYNTHDEF
 # if -sn                        -> SUPERNOVA_FLAG
+# if -universal                 -> build a universal (arm/intel) external
+# if -soundfile                 -> load soundfiles
 # existing *.dsp files          -> FILES
 #
 
@@ -78,22 +80,57 @@ F2SC_DEBUG_MES=0
 SUPERNOVA_FLAG=0
 KEEP_SRC=0
 SYNTHDEF=""
-NO_FAUST_PREFIX=0
+SC_FAUST_PREFIX="Faust"
+
+echoHelp()
+{
+    usage faust2supercollider "[options] [Faust options] <file.dsp>"
+    require SuperCollider includes
+    echo "Compiles Faust programs to SuperCollider UGens. On macOS, soundfiles will be searched in 'xx/Library/Application Support/SuperCollider/Extensions/' and 'xx/Library/Application Support/SuperCollider/Extensions/FaustSounds'"
+    option
+    option "-d[ebug]" "to activate debug mode"
+    option "-dm" "to activate debug message mode"
+    option "-sd" "activate the --synthdef option in faust2sc"
+    option "-ks" "to keep the UGen source"
+    option "-sn" "to compile for SuperNova"
+    option "-noprefix" "to remove the standard 'Faust' prefix"
+    options -soundfile
+    option -universal "to generate a universal (arm/intel) UGens"
+    option "Faust options"
+    exit
+}
+
+
+if [ "$#" -eq 0 ]; then
+    echo 'Please, provide a Faust file to process !'
+    echo ''
+    echoHelp
+fi
 
 for p in $@; do
 
-    if [ "$p" = -debug ] || [ "$p" = -d ]; then
+   if [ $p = "-help" ] || [ $p = "-h" ]; then
+       echoHelp
+    elif [ "$p" = -debug ] || [ "$p" = -d ]; then
         F2SC_DEBUG=1
     elif [ "$p" = -dm ]; then
         F2SC_DEBUG_MES=1
     elif [ "$p" = -ks ]; then
         KEEP_SRC=1
     elif [ "$p" = -noprefix ]; then
-        NO_FAUST_PREFIX=1
+        SC_FAUST_PREFIX=""
     elif [ "$p" = -sd ] || [ "$p" = -synthdef ]; then
         SYNTHDEF="--synthdef"
     elif [ "$p" = -sn ] || [ "$p" = -supernova ]; then
         SUPERNOVA_FLAG=1
+    elif [ $p = "-universal" ]; then
+        UNIVERSAL="1"
+    elif [ $p = "-soundfile" ]; then
+        SOUNDFILE="1"
+        SOUNDFILEDEFS="-DSOUNDFILE `pkg-config --cflags sndfile`"
+    elif [ $p = "-soundfile_wav" ]; then
+        SOUNDFILE="1"
+        SOUNDFILEDEFS="-DSOUNDFILE -DSUPERCOLLIDER"
     elif [ ${p:0:1} = "-" ]; then
         OPTIONS="$OPTIONS $p"
     elif [[ -f "$p" ]] && [ ${p: -4} == ".dsp" ]; then
@@ -116,10 +153,21 @@ else
     DNDEBUG="-DNDEBUG"
 fi
 
-if [ "$FILES" = "" ]; then
-    echo USAGE:
-    echo "$0 [-d[ebug]] [-dm] [-sd] [-ks] [-sn] [-noprefix] file1.dsp [file2.dsp ...]"
-    exit 1
+
+if [ "$#" -eq 0 ]; then
+    echo 'Please, provide a Faust file to process !'
+    echo ''
+    echoHelp
+fi
+
+#-------------------------------------------------------------------
+# Check Darwin specifics
+#
+if [[ $(uname) == Darwin ]]; then
+    # Use -undefined dynamic_lookup flag for libsndfile (part of the SC runtime) weak linking
+    ARCHLIB+=" -framework CoreFoundation -framework CoreServices -undefined dynamic_lookup"
+else
+    ARCHLIB+=""
 fi
 
 #-------------------------------------------------------------------
@@ -154,23 +202,31 @@ for p in $FILES; do
     faust -i -a $ARCHFILE -xml $OPTIONS "$SRCDIR/$f" -o "$TMP/${f%.dsp}.cpp" || exit
     mv "$SRCDIR/$f.xml" "$TMP/"
     
+
     # compile c++ to binary; --prefix should be same as in ../../examples/Makefile.sccompile
     (
-        SC_FAUST_PREFIX="Faust"
-        if [ $NO_FAUST_PREFIX = 1 ]; then
-            SC_FAUST_PREFIX=""
-        fi
-
         cd "$TMP"
         faust2sc --prefix="$SC_FAUST_PREFIX" $SYNTHDEF "$f.xml" > "${f%.dsp}.sc" 2>$OUTDEV
         BUILDFLAGS="$FAUSTTOOLSFLAGS $SCFLAGS -I$CUR $INCLUDE $CXXFLAGS $OMP -DSC_FAUST_PREFIX=\"$SC_FAUST_PREFIX\""
 
         # build for build scsynth
-        $CXX $BUILDFLAGS "-Dmydsp=${f%.dsp}" -o "${f%.dsp}.$EXT" "${f%.dsp}.cpp"
-
+        # universal binaries produced on M1
+        if [[ $(uname) == Darwin && ($(uname -p) = arm  || "$UNIVERSAL" = "1") ]]; then
+            $CXX $BUILDFLAGS -arch x86_64 $SOUNDFILEDEFS $SOUNDFILELIBS $ARCHLIB "-Dmydsp=${f%.dsp}" "${f%.dsp}.cpp" -o "${f%.dsp}_x86_64.$EXT" 
+            $CXX $BUILDFLAGS -arch arm64 $SOUNDFILEDEFS $SOUNDFILELIBS $ARCHLIB "-Dmydsp=${f%.dsp}" "${f%.dsp}.cpp" -o "${f%.dsp}_arm64.$EXT"
+            $LIPO -create "${f%.dsp}_x86_64.$EXT" "${f%.dsp}_arm64.$EXT" -output "${f%.dsp}.$EXT" || exit
+        else
+            $CXX $BUILDFLAGS $SOUNDFILEDEFS $SOUNDFILELIBS $ARCHLIB $IGNORE_FLAGS "-Dmydsp=${f%.dsp}" "${f%.dsp}.cpp" -o "${f%.dsp}.$EXT" 
+        fi 
         # build for supernova
         if [ $SUPERNOVA_FLAG = 1 ]; then
-            $CXX $BUILDFLAGS -DSUPERNOVA "-Dmydsp=${f%.dsp}" -o "${f%.dsp}_supernova.$EXT" "${f%.dsp}.cpp"
+            if [[ $(uname) == Darwin && ($(uname -p) = arm  || "$UNIVERSAL" = "1") ]]; then
+                $CXX $BUILDFLAGS -arch x86_64 -DSUPERNOVA $SOUNDFILEDEFS $SOUNDFILELIBS $ARCHLIB "-Dmydsp=${f%.dsp}" "${f%.dsp}.cpp" -o "${f%.dsp}_supernova_x86_64.$EXT" 
+                $CXX $BUILDFLAGS -arch arm64 -DSUPERNOVA $SOUNDFILEDEFS $SOUNDFILELIBS $ARCHLIB "-Dmydsp=${f%.dsp}" "${f%.dsp}.cpp" -o "${f%.dsp}_supernova_arm64.$EXT" 
+                $LIPO -create "${f%.dsp}_supernova_x86_64.$EXT" "${f%.dsp}_supernova_arm64.$EXT" -output "${f%.dsp}_supernova.$EXT" || exit
+            else
+                $CXX $BUILDFLAGS -DSUPERNOVA $SOUNDFILEDEFS $SOUNDFILELIBS $ARCHLIB "-Dmydsp=${f%.dsp}" "${f%.dsp}.cpp" -o "${f%.dsp}_supernova.$EXT" 
+            fi
         fi
 
     )> $OUTDEV || exit
@@ -183,12 +239,12 @@ for p in $FILES; do
     cp "$TMP/${f%.dsp}.sc" "$SRCDIR/${f%.dsp}.sc"
 
     # Deactivated for now
-    #if [[ $(uname) == Darwin || $CROSSTARGET == Darwin ]]; then
-    #    codesign --sign - --deep --force "$SRCDIR/${f%.dsp}.$EXT"
-    #    if [ $SUPERNOVA_FLAG = 1 ]; then
-    #        codesign --sign - --deep --force "$SRCDIR/${f%.dsp}_supernova.$EXT"
-    #    fi
-    #fi
+    if [[ $(uname) == Darwin || $CROSSTARGET == Darwin ]]; then
+        codesign --sign - --deep --force "$SRCDIR/${f%.dsp}.$EXT"
+        if [ $SUPERNOVA_FLAG = 1 ]; then
+            codesign --sign - --deep --force "$SRCDIR/${f%.dsp}_supernova.$EXT"
+        fi
+    fi
 
     if [ $KEEP_SRC = 1 ]; then
         cp "$TMP/${f%.dsp}.cpp" "$SRCDIR/${f%.dsp}.cpp"
@@ -197,7 +253,7 @@ for p in $FILES; do
     if [ $F2SC_DEBUG = 1 ]; then
         echo "Retaining intermediate products directory '$TDR'"
         OUTDEV=/dev/tty
-    else       
+    else
         rm -rf "$TDR"
     fi
 

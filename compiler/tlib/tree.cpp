@@ -1,19 +1,19 @@
 /************************************************************************
  ************************************************************************
     FAUST compiler
-    Copyright (C) 2003-2018 GRAME, Centre National de Creation Musicale
+    Copyright (C) 2003-2024 GRAME, Centre National de Creation Musicale
     ---------------------------------------------------------------------
     This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation; either version 2.1 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+    GNU Lesser General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
+    You should have received a copy of the GNU Lesser General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -33,37 +33,37 @@ storage of trees.
 
  API:
  ----
- tree (n) 				: tree of node n with no branch
- tree (n, t1) 			: tree of node n with a branch t
- tree (n, t1,...,tm)	: tree of node n with m branches t1,...,tm
+ tree (n)            : tree of node n with no branch
+ tree (n, t1)        : tree of node n with a branch t
+ tree (n, t1,...,tm) : tree of node n with m branches t1,...,tm
 
  Pattern matching :
 
- if (isTree (t, n)) 		... : t has node n and no branches;
- if (isTree (t, n, &t1)		... : t has node n and 1 branch, t1 is set accordingly;
- if (isTree (t, n, &t1...&tm)...: t has node n and m branches, ti's are set accordingly;
+ if (isTree (t, n))           : t has node n and no branches;
+ if (isTree (t, n, &t1)       : t has node n and 1 branch, t1 is set accordingly;
+ if (isTree (t, n, &t1...&tm) : t has node n and m branches, ti's are set accordingly;
 
  Accessors :
 
- t->node()			: the node of t		{ return fNode; }
- t->arity() 		: the number of branches of t return fArity; }
- t->branch(i) 		: the ith branch of t
+ t->node()    : the node of t { return fNode; }
+ t->arity()   : the number of branches of t { return fArity; }
+ t->branch(i) : the ith branch of t
 
  Attributs :
 
- t->attribut() 		: return the attribut (also a tree) of t
- t->attribut(t')	: set the attribut of t to t'
+ t->attribut()   : return the attribute (also a tree) of t
+ t->attribut(t') : set the attribute of t to t'
 
  Warning :
  ---------
  Since reference counters are used for garbage collecting, one must be careful not to
- create cycles in trees The only possible source of cycles is by setting the attribut
+ create cycles in trees. The only possible source of cycles is by setting the attribute
  of a tree t to a tree t' that contains t as a subtree.
 
  Properties:
  -----------
-    If p and q are two CTree pointers  :
-        p != q  <=>  *p != *q
+    If p and q are two CTree pointers :
+        p != q <=> *p != *q
 
  History :
  ---------
@@ -81,15 +81,20 @@ storage of trees.
 #include <fstream>
 
 #include "exception.hh"
+#include "global.hh"
 #include "tree.hh"
+
+using namespace std;
 
 #ifdef WIN32
 #pragma warning(disable : 4800)
 #endif
 
-#define ERROR(s, t)              \
-    {                            \
-        throw faustexception(s); \
+#define ERROR(s, t)                        \
+    {                                      \
+        stringstream error;                \
+        error << s << *t << endl;          \
+        throw faustexception(error.str()); \
     }
 
 Tree         CTree::gHashTable[kHashTableSize];
@@ -107,30 +112,20 @@ CTree::CTree(size_t hk, const Node& n, const tvec& br)
       fVisitTime(0),
       fBranch(br)
 {
-    // link dans la hash table
+    // link in the hash table
     int j         = hk % kHashTableSize;
     fNext         = gHashTable[j];
     gHashTable[j] = this;
 }
 
-// Destructor : remove the tree from the hash table
+// Destructor
 CTree::~CTree()
 {
-    int  i = fHashKey % kHashTableSize;
-    Tree t = gHashTable[i];
-
-    // printf("Delete of "); this->print(); printf("\n");
-    if (t == this) {
-        gHashTable[i] = fNext;
-    } else {
-        Tree p = nullptr;
-        while (t != this) {
-            p = t;
-            t = t->fNext;
-        }
-        faustassert(p);
-        p->fNext = fNext;
-    }
+    /*
+     Remove the tree from the hash table is not needed
+     since all pointers are either managed using the Garbageable model
+     or with CDTree "successive pointers" allocation model.
+     */
 }
 
 // equivalence
@@ -141,30 +136,18 @@ bool CTree::equiv(const Node& n, const tvec& br) const
 
 size_t CTree::calcTreeHash(const Node& n, const tvec& br)
 {
-    size_t               hk = size_t(n.getPointer());
-    tvec::const_iterator b  = br.begin();
-    tvec::const_iterator z  = br.end();
-
-    while (b != z) {
-        hk = (hk << 1) ^ (hk >> 20) ^ ((*b)->fHashKey);
-        ++b;
+    size_t hk = std::hash<void*>()(n.getPointer());
+    for (const auto& ptr : br) {
+        // Taken from by boost::hash_combine
+        hk = hk ^ (ptr->fHashKey + 0x9e3779b9 + (hk << 6) + (hk >> 2));
     }
     return hk;
 }
 
-Tree CTree::make(const Node& n, int ar, Tree* tbl)
+Tree CTree::make(const Node& n, int ar, Tree tbl[])
 {
-    tvec br(ar);
-
-    for (int i = 0; i < ar; i++) br[i] = tbl[i];
-
-    size_t hk = calcTreeHash(n, br);
-    Tree   t  = gHashTable[hk % kHashTableSize];
-
-    while (t && !t->equiv(n, br)) {
-        t = t->fNext;
-    }
-    return (t) ? t : new CTree(hk, n, br);
+    vector<Tree> br(tbl, tbl + ar);
+    return CTree::make(n, br);
 }
 
 Tree CTree::make(const Node& n, const tvec& br)
@@ -175,7 +158,12 @@ Tree CTree::make(const Node& n, const tvec& br)
     while (t && !t->equiv(n, br)) {
         t = t->fNext;
     }
-    return (t) ? t : new CTree(hk, n, br);
+
+    if (t) {
+        return t;
+    } else {
+        return new CTree(hk, n, br);
+    }
 }
 
 ostream& CTree::print(ostream& fout) const
@@ -219,11 +207,14 @@ void CTree::control()
 
 void CTree::init()
 {
+    gSerialCounter = 0;
+    gVisitTime     = 0;
+    gDetails       = false;
     memset(gHashTable, 0, sizeof(Tree) * kHashTableSize);
 }
 
-// if t has a node of type int, return it otherwise error
-int tree2int(Tree t)
+// if t has a node of type int, return it, or float, return casted to int, otherwise error
+LIBFAUST_API int tree2int(Tree t)
 {
     double x;
     int    i;
@@ -233,16 +224,13 @@ int tree2int(Tree t)
     } else if (isDouble(t->node(), &x)) {
         i = int(x);
     } else {
-        ERROR(
-            "ERROR : the parameter must be a constant value known at compile time (the node of the tree is not an int "
-            "nor a float)\n",
-            t);
+        ERROR("ERROR : the parameter must be an integer constant numerical expression : ", t);
     }
     return i;
 }
 
-// if t has a node of type float, return it otherwise error
-double tree2float(Tree t)
+// if t has a node of type int, return casted to double, or double, return it, otherwise error
+LIBFAUST_API double tree2double(Tree t)
 {
     double x;
     int    i;
@@ -252,42 +240,17 @@ double tree2float(Tree t)
     } else if (isDouble(t->node(), &x)) {
         // nothing to do
     } else {
-        ERROR(
-            "ERROR : the parameter must be a constant value known at compile time (the node of the tree is not a float "
-            "nor an int)\n",
-            t);
+        ERROR("ERROR : the parameter must be a real constant numerical expression : ", t);
     }
     return x;
 }
 
-// if t has a node of type float, return it as a double otherwise error
-double tree2double(Tree t)
-{
-    double x;
-    int    i;
-
-    if (isInt(t->node(), &i)) {
-        x = double(i);
-    } else if (isDouble(t->node(), &x)) {
-        // nothing to do
-    } else {
-        ERROR(
-            "ERROR : the parameter must be a constant value known at compile time (the node of the tree is not a float "
-            "nor an int)\n",
-            t);
-    }
-    return double(x);
-}
-
 // if t has a node of type symbol, return its name otherwise error
-const char* tree2str(Tree t)
+LIBFAUST_API const char* tree2str(Tree t)
 {
     Sym s;
     if (!isSym(t->node(), &s)) {
-        ERROR(
-            "ERROR : the parameter must be a constant value known at compile time (the node of the tree is not a "
-            "symbol)\n",
-            t);
+        ERROR("ERROR : the parameter must be a symbol known at compile time : ", t);
     }
     return name(s);
 }
@@ -302,10 +265,7 @@ void* tree2ptr(Tree t)
 {
     void* x;
     if (!isPointer(t->node(), &x)) {
-        ERROR(
-            "ERROR : the parameter must be a constant value known at compile time (the node of the tree is not a "
-            "pointer)\n",
-            t);
+        ERROR("ERROR : the parameter must be a pointer known at compile time : ", t);
     }
     return x;
 }
@@ -317,7 +277,7 @@ bool isTree (const Tree& t, const Node& n)
 }
 */
 
-// Si ca ne pose pas de problemes, c'est plus pratique
+// If it's not a problem, it's more practical
 bool isTree(const Tree& t, const Node& n)
 {
     return (t->node() == n);
@@ -383,15 +343,14 @@ bool isTree(const Tree& t, const Node& n, Tree& a, Tree& b, Tree& c, Tree& d, Tr
     }
 }
 
-// July 2005, support for symbol user data
-
-void* getUserData(Tree t)
+// Support for symbol user data
+LIBFAUST_API void* getUserData(Tree t)
 {
     Sym s;
     if (isSym(t->node(), &s)) {
         return getUserData(s);
     } else {
-        return 0;
+        return nullptr;
     }
 }
 
@@ -399,11 +358,10 @@ void* getUserData(Tree t)
  * export the properties of a CTree as two vectors, one for the keys
  * and one for the associated values
  */
-
 void CTree::exportProperties(vector<Tree>& keys, vector<Tree>& values)
 {
-    for (plist::const_iterator p = fProperties.begin(); p != fProperties.end(); p++) {
-        keys.push_back(p->first);
-        values.push_back(p->second);
+    for (const auto& it : fProperties) {
+        keys.push_back(it.first);
+        values.push_back(it.second);
     }
 }

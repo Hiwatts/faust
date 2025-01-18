@@ -23,19 +23,33 @@
  ************************************************************************/
 
 #include <vector>
+#include <tuple>
 #include <iostream>
 #include <string>
 #include <math.h>
 
+#define min(a, b) ((a) < (b) ? (a) : (b))
+#define max(a, b) ((a) > (b) ? (a) : (b))
+
 #include "faust/gui/UI.h"
-#include "faust/dsp/one-sample-dsp.h"
 #include "faust/dsp/dsp-bench.h"
 #include "faust/misc.h"
+
+#include "faust/gui/Soundfile.h"
+
+// To be used by DSP code if no SoundUI is used
+Soundfile* defaultsound = nullptr;
 
 #if defined(ALL_TESTS)
 
 #include "dsp_scal.h"
 #include "dsp_scal_exp10.h"
+#include "dsp_scal_mcd0.h"
+#include "dsp_scal_mcd2.h"
+#include "dsp_scal_mcd8.h"
+#include "dsp_scal_mcd16.h"
+#include "dsp_scal_mcd32.h"
+#include "dsp_scal_mcd64.h"
 #include "dsp_scal_os.h"
 
 #include "dsp_vec0_4.h"
@@ -87,6 +101,9 @@
 
 #include "dsp_scal.h"
 #include "dsp_scal_exp10.h"
+#include "dsp_scal_mcd0.h"
+#include "dsp_scal_mcd8.h"
+#include "dsp_scal_mcd32.h"
 #include "dsp_scal_os.h"
 #include "dsp_vec0_32.h"
 #include "dsp_vec1_32.h"
@@ -101,31 +118,37 @@
 
 using namespace std;
 
-#define ADD_DOUBLE string((sizeof(FAUSTFLOAT) == 8) ? "-double " : "")
-
 ofstream* gFaustbenchLog = nullptr;
 
-
 template <typename REAL>
-static pair<double, double> bench(dsp* dsp, int dsp_size, const string& name, int run, int buffer_size, bool is_trace, bool is_control, int ds, int us, int filter)
+static tuple<double, double, double> bench(dsp* dsp, int dsp_size, const string& name, int run, int buffer_size, bool is_trace, bool is_control, int ds, int us, int filter)
 {
     measure_dsp_real<REAL> mes(dsp, buffer_size, 5., is_trace, is_control, ds, us, filter);  // Buffer_size and duration in sec of measure
+    // Keep best values
+    std::pair<double, double> best_res(0,0);
+    double best_cpu = 0.;
+    // Several runs
     for (int i = 0; i < run; i++) {
         mes.measure();
-        if (is_trace) cout << name << " : " << mes.getStats() << " MBytes/sec (DSP CPU % : " << (mes.getCPULoad() * 100) << " at " << BENCH_SAMPLE_RATE << " Hz), DSP struct memory size in bytes : " << dsp_size << endl;
-        FAUSTBENCH_LOG<double>(mes.getStats());
+        std::pair<double, double> res = mes.getStats();
+        if (is_trace) cout << name << " : " << res.first << " MBytes/sec, SD : " << res.second << "% (DSP CPU : " << (mes.getCPULoad() * 100) << "% at 44100 Hz)" << endl;
+        FAUSTBENCH_LOG<REAL>(res.first);
+        if (res.first > best_res.first) {
+            best_res = res;
+            best_cpu = mes.getCPULoad();
+        }
     }
-    return make_pair(mes.getStats(), mes.getCPULoad());
+    return make_tuple(best_res.first, best_res.second, best_cpu);
 }
 
-static bool compareFun(pair<double, double> i, pair<double, double> j)
+static bool compareFun(tuple<double, double, double> i, tuple<double, double, double> j)
 {
-    return (i.first > j.first);
+    return (std::get<0>(i) < std::get<0>(j));
 }
 
 extern "C" int bench_all(const char* name, int run, int buffer_size, bool is_trace, bool is_control, int ds, int us, int filter)
 {
-    vector<pair<double, double> > measures;
+    vector<tuple<double, double, double>> measures;
     vector<string> options;
     
     if (is_trace) {
@@ -138,68 +161,77 @@ extern "C" int bench_all(const char* name, int run, int buffer_size, bool is_tra
     
 #if defined(ALL_TESTS)
     
-    options.push_back(ADD_DOUBLE + "-scal");
-    options.push_back(ADD_DOUBLE + "-scal -exp10");
-    options.push_back(ADD_DOUBLE + "-scal -os");
+    options.push_back("-scal" + OPTIONS);
+    options.push_back("-scal -exp10" + OPTIONS);
+    options.push_back("-scal -mcd 0" + OPTIONS);
+    options.push_back("-scal -mcd 2" + OPTIONS);
+    options.push_back("-scal -mcd 8" + OPTIONS);
+    options.push_back("-scal -mcd 16" + OPTIONS);
+    options.push_back("-scal -mcd 32" + OPTIONS);
+    options.push_back("-scal -mcd 64" + OPTIONS);
+    options.push_back("-scal -os" + OPTIONS);
     
-    options.push_back(ADD_DOUBLE + "-vec -lv 0 -vs 4");
-    options.push_back(ADD_DOUBLE + "-vec -lv 0 -vs 8");
-    options.push_back(ADD_DOUBLE + "-vec -lv 0 -vs 16");
-    options.push_back(ADD_DOUBLE + "-vec -lv 0 -vs 32");
-    options.push_back(ADD_DOUBLE + "-vec -lv 0 -vs 64");
-    options.push_back(ADD_DOUBLE + "-vec -lv 0 -vs 128");
-    options.push_back(ADD_DOUBLE + "-vec -lv 0 -vs 256");
-    options.push_back(ADD_DOUBLE + "-vec -lv 0 -vs 512");
+    options.push_back("-vec -lv 0 -vs 4" + OPTIONS);
+    options.push_back("-vec -lv 0 -vs 8" + OPTIONS);
+    options.push_back("-vec -lv 0 -vs 16" + OPTIONS);
+    options.push_back("-vec -lv 0 -vs 32" + OPTIONS);
+    options.push_back("-vec -lv 0 -vs 64" + OPTIONS);
+    options.push_back("-vec -lv 0 -vs 128" + OPTIONS);
+    options.push_back("-vec -lv 0 -vs 256" + OPTIONS);
+    options.push_back("-vec -lv 0 -vs 512" + OPTIONS);
     
-    options.push_back(ADD_DOUBLE + "-vec -fun -lv 0 -vs 4");
-    options.push_back(ADD_DOUBLE + "-vec -fun -lv 0 -vs 8");
-    options.push_back(ADD_DOUBLE + "-vec -fun -lv 0 -vs 16");
-    options.push_back(ADD_DOUBLE + "-vec -fun -lv 0 -vs 32");
-    options.push_back(ADD_DOUBLE + "-vec -fun -lv 0 -vs 64");
-    options.push_back(ADD_DOUBLE + "-vec -fun -lv 0 -vs 128");
-    options.push_back(ADD_DOUBLE + "-vec -fun -lv 0 -vs 256");
-    options.push_back(ADD_DOUBLE + "-vec -fun -lv 0 -vs 512");
+    options.push_back("-vec -fun -lv 0 -vs 4" + OPTIONS);
+    options.push_back("-vec -fun -lv 0 -vs 8" + OPTIONS);
+    options.push_back("-vec -fun -lv 0 -vs 16" + OPTIONS);
+    options.push_back("-vec -fun -lv 0 -vs 32" + OPTIONS);
+    options.push_back("-vec -fun -lv 0 -vs 64" + OPTIONS);
+    options.push_back("-vec -fun -lv 0 -vs 128" + OPTIONS);
+    options.push_back("-vec -fun -lv 0 -vs 256" + OPTIONS);
+    options.push_back("-vec -fun -lv 0 -vs 512" + OPTIONS);
     
-    options.push_back(ADD_DOUBLE + "-vec -lv 0 -g -vs 4");
-    options.push_back(ADD_DOUBLE + "-vec -lv 0 -g -vs 8");
-    options.push_back(ADD_DOUBLE + "-vec -lv 0 -g -vs 16");
-    options.push_back(ADD_DOUBLE + "-vec -lv 0 -g -vs 32");
-    options.push_back(ADD_DOUBLE + "-vec -lv 0 -g -vs 64");
-    options.push_back(ADD_DOUBLE + "-vec -lv 0 -g -vs 128");
-    options.push_back(ADD_DOUBLE + "-vec -lv 0 -g -vs 256");
-    options.push_back(ADD_DOUBLE + "-vec -lv 0 -g -vs 512");
+    options.push_back("-vec -lv 0 -g -vs 4" + OPTIONS);
+    options.push_back("-vec -lv 0 -g -vs 8" + OPTIONS);
+    options.push_back("-vec -lv 0 -g -vs 16" + OPTIONS);
+    options.push_back("-vec -lv 0 -g -vs 32" + OPTIONS);
+    options.push_back("-vec -lv 0 -g -vs 64" + OPTIONS);
+    options.push_back("-vec -lv 0 -g -vs 128" + OPTIONS);
+    options.push_back("-vec -lv 0 -g -vs 256" + OPTIONS);
+    options.push_back("-vec -lv 0 -g -vs 512" + OPTIONS);
     
-    options.push_back(ADD_DOUBLE + "-vec -lv 1 -vs 4");
-    options.push_back(ADD_DOUBLE + "-vec -lv 1 -vs 8");
-    options.push_back(ADD_DOUBLE + "-vec -lv 1 -vs 16");
-    options.push_back(ADD_DOUBLE + "-vec -lv 1 -vs 32");
-    options.push_back(ADD_DOUBLE + "-vec -lv 1 -vs 64");
-    options.push_back(ADD_DOUBLE + "-vec -lv 1 -vs 128");
-    options.push_back(ADD_DOUBLE + "-vec -lv 1 -vs 256");
-    options.push_back(ADD_DOUBLE + "-vec -lv 1 -vs 512");
+    options.push_back("-vec -lv 1 -vs 4" + OPTIONS);
+    options.push_back("-vec -lv 1 -vs 8" + OPTIONS);
+    options.push_back("-vec -lv 1 -vs 16" + OPTIONS);
+    options.push_back("-vec -lv 1 -vs 32" + OPTIONS);
+    options.push_back("-vec -lv 1 -vs 64" + OPTIONS);
+    options.push_back("-vec -lv 1 -vs 128" + OPTIONS);
+    options.push_back("-vec -lv 1 -vs 256" + OPTIONS);
+    options.push_back("-vec -lv 1 -vs 512" + OPTIONS);
     
-    options.push_back(ADD_DOUBLE + "-vec -lv 1 -g -vs 4");
-    options.push_back(ADD_DOUBLE + "-vec -lv 1 -g -vs 8");
-    options.push_back(ADD_DOUBLE + "-vec -lv 1 -g -vs 16");
-    options.push_back(ADD_DOUBLE + "-vec -lv 1 -g -vs 32");
-    options.push_back(ADD_DOUBLE + "-vec -lv 1 -g -vs 64");
-    options.push_back(ADD_DOUBLE + "-vec -lv 1 -g -vs 128");
-    options.push_back(ADD_DOUBLE + "-vec -lv 1 -g -vs 256");
-    options.push_back(ADD_DOUBLE + "-vec -lv 1 -g -vs 512");
+    options.push_back("-vec -lv 1 -g -vs 4" + OPTIONS);
+    options.push_back("-vec -lv 1 -g -vs 8" + OPTIONS);
+    options.push_back("-vec -lv 1 -g -vs 16" + OPTIONS);
+    options.push_back("-vec -lv 1 -g -vs 32" + OPTIONS);
+    options.push_back("-vec -lv 1 -g -vs 64" + OPTIONS);
+    options.push_back("-vec -lv 1 -g -vs 128" + OPTIONS);
+    options.push_back("-vec -lv 1 -g -vs 256" + OPTIONS);
+    options.push_back("-vec -lv 1 -g -vs 512" + OPTIONS);
     
 #elif defined(FAST_TESTS)
     
-    options.push_back(ADD_DOUBLE + "-scal");
-    options.push_back(ADD_DOUBLE + "-scal -exp10");
-    options.push_back(ADD_DOUBLE + "-scal -os");
-    options.push_back(ADD_DOUBLE + "-vec -lv 0 -vs 32");
-    options.push_back(ADD_DOUBLE + "-vec -lv 0 -vs 32 -g");
-    options.push_back(ADD_DOUBLE + "-vec -lv 1 -vs 32");
-    options.push_back(ADD_DOUBLE + "-vec -lv 1 -vs 32 -g");
+    options.push_back("-scal" + OPTIONS);
+    options.push_back("-scal -exp10" + OPTIONS);
+    options.push_back("-scal -mcd 0" + OPTIONS);
+    options.push_back("-scal -mcd 8" + OPTIONS);
+    options.push_back("-scal -mcd 32" + OPTIONS);
+    options.push_back("-scal -os" + OPTIONS);
+    options.push_back("-vec -lv 0 -vs 32" + OPTIONS);
+    options.push_back("-vec -lv 0 -vs 32 -g" + OPTIONS);
+    options.push_back("-vec -lv 1 -vs 32" + OPTIONS);
+    options.push_back("-vec -lv 1 -vs 32 -g" + OPTIONS);
     
 #elif defined(SINGLE_TESTS)
     
-    options.push_back(ADD_DOUBLE + "-scal");
+    options.push_back("-scal" + OPTIONS);
     
 #endif
     
@@ -210,6 +242,12 @@ extern "C" int bench_all(const char* name, int run, int buffer_size, bool is_tra
     // Scalar
     measures.push_back(bench<FAUSTFLOAT>(new dsp_scal(), sizeof(dsp_scal), options[ind++], run, buffer_size, is_trace, is_control, ds, us, filter));
     measures.push_back(bench<FAUSTFLOAT>(new dsp_scal_exp10(), sizeof(dsp_scal_exp10), options[ind++], run, buffer_size, is_trace, is_control, ds, us, filter));
+    measures.push_back(bench<FAUSTFLOAT>(new dsp_scal_mcd0(), sizeof(dsp_scal_mcd0), options[ind++], run, buffer_size, is_trace, is_control, ds, us, filter));
+    measures.push_back(bench<FAUSTFLOAT>(new dsp_scal_mcd2(), sizeof(dsp_scal_mcd2), options[ind++], run, buffer_size, is_trace, is_control, ds, us, filter));
+    measures.push_back(bench<FAUSTFLOAT>(new dsp_scal_mcd8(), sizeof(dsp_scal_mcd8), options[ind++], run, buffer_size, is_trace, is_control, ds, us, filter));
+    measures.push_back(bench<FAUSTFLOAT>(new dsp_scal_mcd16(), sizeof(dsp_scal_mcd16), options[ind++], run, buffer_size, is_trace, is_control, ds, us, filter));
+    measures.push_back(bench<FAUSTFLOAT>(new dsp_scal_mcd32(), sizeof(dsp_scal_mcd32), options[ind++], run, buffer_size, is_trace, is_control, ds, us, filter));
+    measures.push_back(bench<FAUSTFLOAT>(new dsp_scal_mcd64(), sizeof(dsp_scal_mcd64), options[ind++], run, buffer_size, is_trace, is_control, ds, us, filter));
     measures.push_back(bench<FAUSTFLOAT>(new dsp_scal_os(), sizeof(dsp_scal_os), options[ind++], run, buffer_size, is_trace, is_control, ds, us, filter));
     
     // Vector -lv 0
@@ -254,6 +292,9 @@ extern "C" int bench_all(const char* name, int run, int buffer_size, bool is_tra
     
     measures.push_back(bench<FAUSTFLOAT>(new dsp_scal(), sizeof(dsp_scal), options[ind++], run, buffer_size, is_trace, is_control, ds, us, filter));
     measures.push_back(bench<FAUSTFLOAT>(new dsp_scal_exp10(), sizeof(dsp_scal_exp10), options[ind++], run, buffer_size, is_trace, is_control, ds, us, filter));
+    measures.push_back(bench<FAUSTFLOAT>(new dsp_scal_mcd0(), sizeof(dsp_scal_mcd0), options[ind++], run, buffer_size, is_trace, is_control, ds, us, filter));
+    measures.push_back(bench<FAUSTFLOAT>(new dsp_scal_mcd8(), sizeof(dsp_scal_mcd8), options[ind++], run, buffer_size, is_trace, is_control, ds, us, filter));
+    measures.push_back(bench<FAUSTFLOAT>(new dsp_scal_mcd32(), sizeof(dsp_scal_mcd32), options[ind++], run, buffer_size, is_trace, is_control, ds, us, filter));
     measures.push_back(bench<FAUSTFLOAT>(new dsp_scal_os(), sizeof(dsp_scal_os), options[ind++], run, buffer_size, is_trace, is_control, ds, us, filter));
     
     measures.push_back(bench<FAUSTFLOAT>(new dsp_vec0_32(), sizeof(dsp_vec0_32), options[ind++], run, buffer_size, is_trace, is_control, ds, us, filter));
@@ -267,15 +308,15 @@ extern "C" int bench_all(const char* name, int run, int buffer_size, bool is_tra
     
 #endif
     
-    vector<pair<double, double> > measures1 = measures;
+    vector<tuple<double, double, double>> measures1 = measures;
     sort(measures1.begin(), measures1.end(), compareFun);
     
-    vector <pair<double, double> >::iterator it = find(measures.begin(), measures.end(), measures1[measures1.size()-1]);
+    vector<tuple<double, double, double>>::iterator it = find(measures.begin(), measures.end(), measures1[measures1.size()-1]);
     long int pos = distance(measures.begin(), it);
     
     if (is_trace) {
-        pair<double, double> res = measures1[measures1.size()-1];
-        cout << "Best value is : " << res.first << " MBytes/sec (DSP CPU % : " << (res.second * 100) << " at 44100 Hz) with " << options[pos] << endl;
+        tuple<double, double, double> res = measures1[measures1.size()-1];
+        cout << "Best value is : " << get<0>(res) << " MBytes/sec, SD : " << get<1>(res) << "% (DSP CPU : " << (get<2>(res) * 100) << " at 44100 Hz) with " << options[pos] << endl;
     } else {
         cout << options[pos] << endl;
     }
@@ -301,7 +342,10 @@ int main(int argc, char* argv[])
     int us = lopt(argv, "-us", 0);
     int filter = lopt(argv, "-filter", 0);
    
-    return bench_all(argv[0], run, buffer_size, is_trace, is_control, ds, us, filter);
+    defaultsound = new Soundfile(MAX_CHAN, 1024, MAX_CHAN, 1, (sizeof(FAUSTFLOAT) == 8));
+    int res = bench_all(argv[0], run, buffer_size, is_trace, is_control, ds, us, filter);
+    delete defaultsound;
+    return res;
 }
 
 #endif

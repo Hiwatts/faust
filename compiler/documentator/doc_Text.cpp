@@ -4,16 +4,16 @@
     Copyright (C) 2003-2018 GRAME, Centre National de Creation Musicale
     ---------------------------------------------------------------------
     This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation; either version 2.1 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+    GNU Lesser General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
+    You should have received a copy of the GNU Lesser General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -33,21 +33,7 @@
 #include "exception.hh"
 #include "floats.hh"
 
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
-
-#ifndef M_PI_2
-#define M_PI_2 1.57079632679489661923
-#endif
-
-#ifndef M_PI_4
-#define M_PI_4 0.785398163397448309616
-#endif
-
-#ifndef M_E
-#define M_E 2.71828182845904523536
-#endif
+using namespace std;
 
 const string symbolicNumber(double n);
 
@@ -129,13 +115,18 @@ static bool AlmostEqual(double A, double B)
     double maxRelativeError = 2 * dblEpsilon();
     double maxAbsoluteError = maxRelativeError;
 
-    if (fabs(A - B) < maxAbsoluteError) return true;
+    if (fabs(A - B) < maxAbsoluteError) {
+        return true;
+    }
     double relativeError;
-    if (fabs(B) > fabs(A))
+    if (fabs(B) > fabs(A)) {
         relativeError = fabs((A - B) / B);
-    else
+    } else {
         relativeError = fabs((A - B) / A);
-    if (relativeError <= maxRelativeError) return true;
+    }
+    if (relativeError <= maxRelativeError) {
+        return true;
+    }
     return false;
 }
 
@@ -151,7 +142,9 @@ bool isPiPower(double n, string& s)
     int          k = (int)floor(log(n) / log(M_PI));
     if (AlmostEqual(n, exp(k * log(M_PI))) && (k != 0) && (abs(k) < 5.0)) {
         ss << "\\pi";
-        if (k != 1) ss << "^{" << k << "}";
+        if (k != 1) {
+            ss << "^{" << k << "}";
+        }
         s = ss.str();
         return true;
     } else {
@@ -170,7 +163,9 @@ bool isExpPower(double n, string& s)
     int          k = (int)floor(log(n));
     if (AlmostEqual(n, exp(float(k))) && (k != 0) && (abs(k) < 5.0)) {
         ss << "e";
-        if (k != 1) ss << "^{" << k << "}";
+        if (k != 1) {
+            ss << "^{" << k << "}";
+        }
         s = ss.str();
         return true;
     } else {

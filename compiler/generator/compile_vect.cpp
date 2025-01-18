@@ -4,16 +4,16 @@
     Copyright (C) 2003-2018 GRAME, Centre National de Creation Musicale
     ---------------------------------------------------------------------
     This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation; either version 2.1 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+    GNU Lesser General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
+    You should have received a copy of the GNU Lesser General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -26,6 +26,9 @@
 #include "compile_vect.hh"
 #include "floats.hh"
 #include "ppsig.hh"
+#include "sharing.hh"
+
+using namespace std;
 
 void VectorCompiler::compileMultiSignal(Tree L)
 {
@@ -51,10 +54,10 @@ void VectorCompiler::compileMultiSignal(Tree L)
     }
 
     generateMetaData();
-    generateUserInterfaceTree(prepareUserInterfaceTree(fUIRoot), true);
-    generateMacroInterfaceTree("", prepareUserInterfaceTree(fUIRoot));
+    generateUserInterfaceTree(fUITree.prepareUserInterfaceTree(), true);
+    generateMacroInterfaceTree("", fUITree.prepareUserInterfaceTree());
     if (fDescription) {
-        fDescription->ui(prepareUserInterfaceTree(fUIRoot));
+        fDescription->ui(fUITree.prepareUserInterfaceTree());
     }
 
     if (gGlobal->gPrintJSONSwitch) {
@@ -87,28 +90,32 @@ string VectorCompiler::CS(Tree sig)
 
         if (fClass->getLoopProperty(sig, ls)) {
             // sig has a loop property
-            //cerr << "CASE SH : fBackwardLoopDependencies.insert : " << tl << " --depend(A)son--> " << ls << endl;
+            // cerr << "CASE SH : fBackwardLoopDependencies.insert : " << tl << " --depend(A)son-->
+            // " << ls << endl;
             tl->fBackwardLoopDependencies.insert(ls);
 
         } else if (isSigDelay(sig, x, d) && fClass->getLoopProperty(x, ls)) {
-            //cerr << "CASE DL : fBackwardLoopDependencies.insert : " << tl << " --depend(B)son--> " << ls << endl;
+            // cerr << "CASE DL : fBackwardLoopDependencies.insert : " << tl << " --depend(B)son-->
+            // " << ls << endl;
             tl->fBackwardLoopDependencies.insert(ls);
 
         } else if (isSigDelay(sig, x, d) && isProj(x, &i, r) && fClass->getLoopProperty(r, ls)) {
-            //cerr << "CASE DR : fBackwardLoopDependencies.insert : " << tl << " --depend(B)son--> " << ls << endl;
+            // cerr << "CASE DR : fBackwardLoopDependencies.insert : " << tl << " --depend(B)son-->
+            // " << ls << endl;
             tl->fBackwardLoopDependencies.insert(ls);
 
         } else if (isProj(sig, &i, r) && fClass->getLoopProperty(r, ls)) {
-            //cerr << "CASE R* : fBackwardLoopDependencies.insert : " << tl << " --depend(B)son--> " << ls << endl;
+            // cerr << "CASE R* : fBackwardLoopDependencies.insert : " << tl << " --depend(B)son-->
+            // " << ls << endl;
             tl->fBackwardLoopDependencies.insert(ls);
 
         } else {
             if (isProj(sig, &i, r)) {
-                //cerr << "SYMBOL RECURSIF EN COURS ??? " << *r << endl;
+                // cerr << "SYMBOL RECURSIF EN COURS ??? " << *r << endl;
             } else if (getCertifiedSigType(sig)->variability() < kSamp) {
-                //cerr << "SLOW EXPRESSION " << endl;
+                // cerr << "SLOW EXPRESSION " << endl;
             } else {
-                //cerr << "Expression absorbée" << *sig << endl;
+                // cerr << "Expression absorbée" << *sig << endl;
             }
         }
     }
@@ -138,8 +145,8 @@ void VectorCompiler::generateCodeRecursions(Tree sig)
         fClass->closeLoop(sig);
     } else {
         // we go down the expression
-        vector<Tree> subsigs;
-        int          n = getSubSignals(sig, subsigs, false);
+        tvec subsigs;
+        int  n = getSubSignals(sig, subsigs, false);
         for (int i = 0; i < n; i++) {
             generateCodeRecursions(subsigs[i]);
         }
@@ -212,11 +219,11 @@ string VectorCompiler::generateLoopCode(Tree sig)
  */
 string VectorCompiler::generateCacheCode(Tree sig, const string& exp)
 {
-    string          vname, ctype;
-    int             sharing = getSharingCount(sig);
-    Type            t       = getCertifiedSigType(sig);
-    old_Occurences* o       = fOccMarkup->retrieve(sig);
-    int             d       = o->getMaxDelay();
+    string       vname, ctype;
+    int          sharing = getSharingCount(sig, fSharingKey);
+    Type         t       = getCertifiedSigType(sig);
+    Occurrences* o       = fOccMarkup->retrieve(sig);
+    int          d       = o->getMaxDelay();
 
     if (t->variability() < kSamp) {
         if (d == 0) {
@@ -246,26 +253,26 @@ string VectorCompiler::generateCacheCode(Tree sig, const string& exp)
         // sample-rate signal
         if (d > 0) {
             // used delayed : we need a delay line
-            //cerr << "CHASING BUG 1 " << *sig << endl;
-            //cerr << "CHASING BUG T " << getCertifiedSigType(sig) << endl;
+            // cerr << "CHASING BUG 1 " << *sig << endl;
+            // cerr << "CHASING BUG T " << getCertifiedSigType(sig) << endl;
             getTypedNames(getCertifiedSigType(sig), "Yec", ctype, vname);
-            //cerr << "CHASING BUG N " << ctype << " " << vname << endl;
+            // cerr << "CHASING BUG N " << ctype << " " << vname << endl;
             generateDelayLine(ctype, vname, d, exp, getConditionCode(sig));
             setVectorNameProperty(sig, vname);
 
             if (verySimple(sig)) {
-                //cerr << "CHASING BUG 2 " << exp << endl;
+                // cerr << "CHASING BUG 2 " << exp << endl;
                 return exp;
             } else {
                 if (d < gGlobal->gMaxCopyDelay) {
                     string sss = subst("$0[i]", vname);
-                    //cerr << "CHASING BUG 3 " << sss << endl;
+                    // cerr << "CHASING BUG 3 " << sss << endl;
                     return sss;
                 } else {
                     // we use a ring buffer
                     string mask = T(pow2limit(d + gGlobal->gVecSize) - 1);
                     string sss  = subst("$0[($0_idx+i) & $1]", vname, mask);
-                    //cerr << "CHASING BUG 4 " << sss << endl;
+                    // cerr << "CHASING BUG 4 " << sss << endl;
                     return sss;
                 }
             }
@@ -297,10 +304,10 @@ string VectorCompiler::generateCacheCode(Tree sig, const string& exp)
  */
 bool VectorCompiler::needSeparateLoop(Tree sig)
 {
-    old_Occurences* o = fOccMarkup->retrieve(sig);
-    Type            t = getCertifiedSigType(sig);
-    int             c = getSharingCount(sig);
-    bool            b;
+    Occurrences* o = fOccMarkup->retrieve(sig);
+    Type         t = getCertifiedSigType(sig);
+    int          c = getSharingCount(sig, fSharingKey);
+    bool         b;
 
     int  i;
     Tree x, y;
@@ -352,9 +359,9 @@ string VectorCompiler::generateVariableStore(Tree sig, const string& exp)
  * the maximum delay attached to exp.
  */
 
-string VectorCompiler::generateDelay(Tree sig, Tree exp, Tree delay)
+string VectorCompiler::generateDelayAccess(Tree sig, Tree exp, Tree delay)
 {
-    // cerr << "VectorCompiler::generateDelay " << ppsig(sig) << endl;
+    // cerr << "VectorCompiler::generateDelayAccess " << ppsig(sig) << endl;
 
     string code = CS(exp);  // ensure exp is compiled to have a vector name
     int    d, mxd = fOccMarkup->retrieve(exp)->getMaxDelay();
@@ -393,10 +400,12 @@ string VectorCompiler::generateDelay(Tree sig, Tree exp, Tree delay)
             if (d == 0) {
                 return generateCacheCode(sig, subst("$0[($0_idx+i)&$1]", vecname, T(N - 1)));
             } else {
-                return generateCacheCode(sig, subst("$0[($0_idx+i-$2)&$1]", vecname, T(N - 1), T(d)));
+                return generateCacheCode(sig,
+                                         subst("$0[($0_idx+i-$2)&$1]", vecname, T(N - 1), T(d)));
             }
         } else {
-            return generateCacheCode(sig, subst("$0[($0_idx+i-$2)&$1]", vecname, T(N - 1), CS(delay)));
+            return generateCacheCode(sig,
+                                     subst("$0[($0_idx+i-$2)&$1]", vecname, T(N - 1), CS(delay)));
         }
     }
 }
@@ -406,7 +415,8 @@ string VectorCompiler::generateDelay(Tree sig, Tree exp, Tree delay)
  * maximum delay attached to exp and the "less temporaries" switch
  */
 
-string VectorCompiler::generateDelayVec(Tree sig, const string& exp, const string& ctype, const string& vname, int mxd)
+string VectorCompiler::generateDelayVec(Tree sig, const string& exp, const string& ctype,
+                                        const string& vname, int mxd)
 {
     // it is a non-sample but used delayed
     // we need a delay line
@@ -419,8 +429,8 @@ string VectorCompiler::generateDelayVec(Tree sig, const string& exp, const strin
     }
 }
 
-void VectorCompiler::generateDelayLine(const string& ctype, const string& vname, int mxd, const string& exp,
-                                       const string& ccs)
+void VectorCompiler::generateDelayLine(const string& ctype, const string& vname, int mxd,
+                                       const string& exp, const string& ccs)
 {
     if (mxd == 0) {
         generateVectorLoop(ctype, vname, exp, ccs);
@@ -438,8 +448,8 @@ void VectorCompiler::generateDelayLine(const string& ctype, const string& vname,
  * @param delay the maximum delay
  * @param cexp the content of the signal as a C++ expression
  */
-void VectorCompiler::generateVectorLoop(const string& tname, const string& vecname, const string& cexp,
-                                        const string& ccs)
+void VectorCompiler::generateVectorLoop(const string& tname, const string& vecname,
+                                        const string& cexp, const string& ccs)
 {
     // -- declare the vector
     fClass->addSharedDecl(vecname);
@@ -460,8 +470,8 @@ void VectorCompiler::generateVectorLoop(const string& tname, const string& vecna
  * @param delay the maximum delay
  * @param cexp the content of the signal as a C++ expression
  */
-void VectorCompiler::generateDlineLoop(const string& tname, const string& dlname, int delay, const string& cexp,
-                                       const string& ccs)
+void VectorCompiler::generateDlineLoop(const string& tname, const string& dlname, int delay,
+                                       const string& cexp, const string& ccs)
 {
     if (delay < gGlobal->gMaxCopyDelay) {
         // Implementation of a copy based delayline
@@ -492,13 +502,15 @@ void VectorCompiler::generateDlineLoop(const string& tname, const string& dlname
         fClass->addZone2(subst("$0* \t$1 = &$2[$3];", tname, dlname, buf, dsize));
 
         // -- copy the stored samples to the delay line
-        fClass->addPreCode(Statement(ccs, subst("for (int i=0; i<$2; i++) $0[i]=$1[i];", buf, pmem, dsize)));
+        fClass->addPreCode(
+            Statement(ccs, subst("for (int i=0; i<$2; i++) $0[i]=$1[i];", buf, pmem, dsize)));
 
         // -- compute the new samples
         fClass->addExecCode(Statement(ccs, subst("$0[i] = $1;", dlname, cexp)));
 
         // -- copy back to stored samples
-        fClass->addPostCode(Statement(ccs, subst("for (int i=0; i<$2; i++) $0[i]=$1[count+i];", pmem, buf, dsize)));
+        fClass->addPostCode(
+            Statement(ccs, subst("for (int i=0; i<$2; i++) $0[i]=$1[count+i];", pmem, buf, dsize)));
 
     } else {
         // Implementation of a ring-buffer delayline
@@ -539,6 +551,7 @@ string VectorCompiler::generateWaveform(Tree sig)
     int    size;
 
     declareWaveform(sig, vname, size);
-    fClass->addPostCode(Statement(getConditionCode(sig), subst("idx$0 = (idx$0 + count) % $1;", vname, T(size))));
+    fClass->addPostCode(
+        Statement(getConditionCode(sig), subst("idx$0 = (idx$0 + count) % $1;", vname, T(size))));
     return generateCacheCode(sig, subst("$0[(idx$0+i)%$1]", vname, T(size)));
 }

@@ -40,8 +40,6 @@
 #include <AudioToolbox/AudioServices.h>
 #include <AudioUnit/AudioUnit.h>
 
-using namespace std;
-
 /******************************************************************************
 *******************************************************************************
 
@@ -53,8 +51,7 @@ using namespace std;
 #define OPEN_ERR -1
 #define NO_ERR 0
 
-class TiPhoneCoreAudioRenderer
-{
+class TiPhoneCoreAudioRenderer {
 
     protected:
 
@@ -66,7 +63,7 @@ class TiPhoneCoreAudioRenderer
         int fHWNumInChans;
         int fHWNumOutChans;
 
-        dsp* fDSP;
+        ::dsp* fDSP;
     
         audio* fAudio;
 
@@ -614,7 +611,7 @@ class TiPhoneCoreAudioRenderer
         TiPhoneCoreAudioRenderer(audio* audio)
             :fAUHAL(0), fDevNumInChans(0), fDevNumOutChans(0),
             fHWNumInChans(0), fHWNumOutChans(0),
-            fDSP(0), fAudio(audio), fCAInputData(NULL)
+            fDSP(nullptr), fAudio(audio), fCAInputData(nullptr)
         {}
 
         virtual ~TiPhoneCoreAudioRenderer()
@@ -627,7 +624,7 @@ class TiPhoneCoreAudioRenderer
             }
         }
     
-        int Open(dsp* dsp, int inChan, int outChan, int buffersize, int samplerate)
+        int Open(::dsp* dsp, int inChan, int outChan, int buffersize, int samplerate)
         {
             fDSP = dsp;
             fDevNumInChans = inChan;
@@ -708,7 +705,7 @@ class iosaudio : public audio {
 
         virtual ~iosaudio() { fAudioDevice.Close(); }
    
-        virtual bool init(const char* /*name*/, dsp* DSP)
+        virtual bool init(const char* /*name*/, ::dsp* DSP)
         {
             DSP->init(fSampleRate);
             if (fAudioDevice.Open(DSP, DSP->getNumInputs(), DSP->getNumOutputs(), fBufferSize, fSampleRate) < 0) {

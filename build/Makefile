@@ -2,6 +2,23 @@
 # FAUST compiler makefile
 #
 
+ARCHS ?= 
+LLVM ?= 
+
+LLVM_PACKAGE_VERSION ?= 
+LLVM_DIR ?= 
+LLVM_LIB_DIR ?= 
+LLVM_INCLUDE_DIRS ?= 
+LLVM_LIBS ?= 
+LLVM_DEFINITIONS ?= 
+LLVM_LD_FLAGS ?= 
+INCLUDE_LLVM ?= OFF
+USE_LLVM_CONFIG ?= ON
+
+BUILD_HTTP_STATIC ?= OFF
+USE_STATIC_SNDFILE ?= 0
+MAXSDK ?= $(shell echo $(PWD)/../max-sdk-base/c74support)
+
 # start to determine the current platform
 system := $(shell uname -s)
 # normalizes MINGW versions
@@ -11,7 +28,7 @@ system := $(shell echo $(system) | grep MINGW > /dev/null && echo MINGW || echo 
 # output directories
 FAUSTDIR ?= faustdir
 IOSDIR   := iosdir
-VERSION := 2.40.8
+VERSION := 2.78.4
 
 #===============================================================
 # current generator and backends
@@ -19,7 +36,7 @@ CACHE  = $(FAUSTDIR)/CMakeCache.txt
 BCACHE = $(FAUSTDIR)/backends.txt
 TCACHE = $(FAUSTDIR)/targets.txt
 LCACHE = $(FAUSTDIR)/libsdir.txt
-ifeq ($(system),  MINGW)
+ifeq ($(system), MINGW)
 	GENERATOR ?= $(shell [ -f $(CACHE) ] && (grep CMAKE_GENERATOR:INTERNAL $(CACHE) | cut -d= -f2) || echo MSYS Makefiles)
 	NATIVEPACK = winpack
 else
@@ -28,9 +45,9 @@ else
 endif
 DESTDIR ?=
 
-ifeq ($(system),  MINGW)
+ifeq ($(system), MINGW)
 	NATIVEPACK = winpack
-else ifeq ($(system),  Darwin)
+else ifeq ($(system), Darwin)
 	NATIVEPACK = macpack
 else
 	NATIVEPACK = linuxpack
@@ -49,8 +66,18 @@ ifeq ($(WORKLET), on)
 WORKLETOPT = "-DWORKLET=on"
 endif
 
-CMAKEOPT ?= -DCMAKE_BUILD_TYPE=Release $(WORKLETOPT)
-BUILDOPT ?= --config Release
+NONDETERMINISM_LINT ?= no
+NONDETERMINISM_LINT_OPT =
+CXX_COMPILER_OPT =
+ifeq ($(NONDETERMINISM_LINT), yes)
+NONDETERMINISM_LINT_OPT = "-DNONDETERMINISM_LINT=ON"
+CXX_COMPILER_OPT = "-DCMAKE_CXX_COMPILER=$(shell llvm-config --bindir)/clang++"
+endif
+
+RELEASE_TYPE ?= Release
+CMAKEOPT ?=
+BUILDOPT ?= --config $(RELEASE_TYPE)
+CMAKEOPTS = -DCMAKE_BUILD_TYPE=$(RELEASE_TYPE) $(WORKLETOPT) $(CMAKEOPT) $(NONDETERMINISM_LINT_OPT) $(CXX_COMPILER_OPT)
 
 #CMAKEOPT ?= -DCMAKE_BUILD_TYPE=Debug $(WORKLETOPT)
 #BUILDOPT ?= --config Debug
@@ -84,10 +111,10 @@ full:
 
 clean:
 	$(CMAKE) --build $(FAUSTDIR) --target clean
+	rm -f lib/libfaustwithllvm.a
 
 distclean:
 	rm -rf $(FAUSTDIR)
-
 
 #===============================================================
 help:
@@ -119,7 +146,8 @@ help:
 	@echo "  FAUSTDIR=<dir>              : the compilation directory. Default to '$(FAUSTDIR)'"
 	@echo "  LIBSDIR                     : the libraries destination directory, default: $(LIBSDIR)"
 	@echo "  GENERATOR=<a cmake generator>: see cmake -h. Default to '$(GENERATOR)'"
-	@echo "  CMAKEOPT=<cmake options>    : pass options to cmake for project generation."
+	@echo "  CMAKEOPT=<cmake options>    : pass extra options to cmake for project generation."
+	@echo "  RELEASE_TYPE                : cmake release type (defaults to Release)."
 	@echo "  BUILDOPT=<cmake options>    : pass options to cmake at build time (default to $(BUILDOPT))."
 	@echo "  BACKENDS=<backends file>    : see 'Backends' below"
 	@echo "  TARGETS=<targets file>      : see 'Targets' below"
@@ -186,23 +214,25 @@ package:
 	$(MAKE) $(NATIVEPACK)
 
 winpack:
-	cd $(FAUSTDIR) && $(CMAKE) -DUSE_LLVM_CONFIG=off -DPACK=on -C ../bakckends/most.cmake -C ../targets/most.cmake ..
+	cd $(FAUSTDIR) && $(CMAKE) -DUSE_LLVM_CONFIG=off -DPACK=on -C ../backends/most.cmake -C ../targets/most.cmake ..
 	$(MAKE)
 	cd $(FAUSTDIR) && cpack -G NSIS64
 	mv $(FAUSTDIR)/Faust-*.exe .
 
 macpack: package/README.html
 	-[ -d $(PACK) ] && rm -rf $(PACK)
-	$(MAKE) cmake BACKENDs=all.cmake TARGETS=all.cmake  CMAKEOPT="-DDEPLOYMENT_TARGET=on"
+	$(MAKE) cmake BACKENDs=all.cmake TARGETS=all.cmake
 	$(MAKE) install PREFIX=../$(PACK)/Faust-$(VERSION)
 	$(MAKE) mactools FAUSTDIR=../../build/$(PACK)/Faust-$(VERSION)
 	cp package/INSTALL.html $(PACK)
 	cp package/README.html $(PACK)
-	hdiutil create Faust-$(VERSION).dmg -fs HFS+ -srcfolder $(PACK) -format UDBZ -ov
+	for i in {1..30}; do hdiutil create Faust-$(VERSION).dmg -fs HFS+ -srcfolder $(PACK) -format UDBZ -ov -quiet && break; sleep 2; done
 
 mactools:
-	$(MAKE) -C ../tools/benchmark FAUST=$(FAUSTDIR)/bin/faust TARGETS="dynamic-faust faustbench-llvm"
-	$(MAKE) -C ../tools/benchmark install PREFIX=$(FAUSTDIR) FAUST=$(FAUSTDIR)/bin/faust TARGETS="dynamic-faust faustbench-llvm"
+	$(MAKE) -C ../tools/benchmark FAUSTDIR=$(FAUSTDIR) TARGETS="dynamic-faust faustbench-llvm interp-tracer" LLVM="$(LLVM)" ARCHS="$(ARCHS)" USE_STATIC_SNDFILE=$(USE_STATIC_SNDFILE)
+	$(MAKE) -C ../tools/benchmark install PREFIX=$(FAUSTDIR) FAUSTDIR=$(FAUSTDIR) TARGETS="dynamic-faust faustbench-llvm interp-tracer" LLVM="$(LLVM)" ARCHS="$(ARCHS)" USE_STATIC_SNDFILE=$(USE_STATIC_SNDFILE)
+	$(MAKE) -C ../tools/sound2faust TARGETS="sound2faust sound2file" ARCHS="$(ARCHS)" USE_STATIC_SNDFILE=$(USE_STATIC_SNDFILE)
+	$(MAKE) -C ../tools/sound2faust install PREFIX=$(FAUSTDIR) TARGETS="sound2faust sound2file" ARCHS="$(ARCHS)" USE_STATIC_SNDFILE=$(USE_STATIC_SNDFILE)
 
 linuxpack:
 	@echo Linux packaging not implemented. 
@@ -211,7 +241,9 @@ package/README.html: ../README.md
 	echo "<!DOCTYPE html><html><xmp>" > package/README.html
 	cat ../README.md >> package/README.html
 	echo "</xmp>" >> package/README.html
-	echo "<script src=http://strapdownjs.com/v/0.2/strapdown.js></script>" >> package/README.html
+	echo "<script type=\"text/javascript\">" >> package/README.html
+	cat package/strapdown.min.js >> package/README.html
+	echo "</script>" >> package/README.html
 	echo "</html>" >> package/README.html
 
 
@@ -219,12 +251,11 @@ package/README.html: ../README.md
 # release
 #===============================================================
 FAUSTLIVE ?=../../faustlive
-release: FAUSTGEN=../embedded/faustgen
+FAUSTGEN ?=../embedded/faustgen
 release: APATH=$(shell pwd)
 release:
-	git pull --rebase
 	@echo "################## Building faust package ###################"
-	$(MAKE) cmake BACKENDS=all.cmake TARGETS=all.cmake CMAKEOPT="-DDEPLOYMENT_TARGET=on"
+	$(MAKE) cmake BACKENDS=all.cmake TARGETS=all.cmake
 	$(MAKE) all
 	$(MAKE) package
 	@[ -d Release-$(VERSION) ] || mkdir Release-$(VERSION)
@@ -235,14 +266,14 @@ release:
 	$(MAKE) -C .. dist
 	mv ../faust-$(VERSION).tar.gz Release-$(VERSION)
 	$(MAKE) faustgen
-	$(MAKE) faustlive
+# 	$(MAKE) faustlive  # todo:
 
 faustgen:
 	@echo "################## Building faustgen package ###################"
 	$(MAKE) -C $(FAUSTGEN) clean
-	$(MAKE) -C $(FAUSTGEN) FAUST=$(HOME)/Faust-$(VERSION)/bin/faust
+	$(MAKE) -C $(FAUSTGEN) FAUST_PATH_IS_ABSOLUTE=1 FAUST=$(HOME)/Faust-$(VERSION)/bin/faust USE_STATIC_SNDFILE=$(USE_STATIC_SNDFILE) MAXSDK="$(MAXSDK)"
 	$(MAKE) -C $(FAUSTGEN) package
-	cp $(FAUSTGEN)/package/*.dmg Release-$(VERSION) 
+	cp $(FAUSTGEN)/package/*.dmg Release-$(VERSION)
 
 faustlive: APATH=$(shell pwd)
 faustlive:
@@ -300,7 +331,7 @@ silent: $(FAUSTDIR)
 	cd $(FAUSTDIR) && $(CMAKE) -DCMAKE_VERBOSE_MAKEFILE=OFF ..
 
 cmake: $(FAUSTDIR)
-	cd $(FAUSTDIR) && $(CMAKE) -C ../backends/$(BACKENDS) -C ../targets/$(TARGETS) $(CMAKEOPT) -DLIBSDIR=$(LIBSDIR) -G '$(GENERATOR)' ..
+	cd $(FAUSTDIR) && $(CMAKE) -C ../backends/$(BACKENDS) -C ../targets/$(TARGETS) $(CMAKEOPTS) -DCMAKE_BUILD_TYPE=$(RELEASE_TYPE) $(WORKLETOPT) -DINCLUDE_LLVM=$(INCLUDE_LLVM) -DUSE_LLVM_CONFIG=$(USE_LLVM_CONFIG) -DLLVM_PACKAGE_VERSION=$(LLVM_PACKAGE_VERSION) -DLLVM_LIBS="$(LLVM_LIBS)" -DLLVM_LIB_DIR="$(LLVM_LIB_DIR)" -DLLVM_INCLUDE_DIRS="$(LLVM_INCLUDE_DIRS)" -DLLVM_DEFINITIONS="$(LLVM_DEFINITIONS)" -DLLVM_LD_FLAGS="$(LLVM_LD_FLAGS)" $(DEPLOYMENT) -DLIBSDIR=$(LIBSDIR) -DBUILD_HTTP_STATIC=$(BUILD_HTTP_STATIC) -G '$(GENERATOR)' ..
 	@echo BACKENDS=$(BACKENDS) > $(BCACHE)
 	@echo TARGETS=$(TARGETS) > $(TCACHE)
 	@echo LIBSDIR=$(LIBSDIR) > $(LCACHE)
@@ -309,11 +340,15 @@ cmake: $(FAUSTDIR)
 #===============================================================
 # building faust with emscripten
 #===============================================================
+WASMFS := wasm-filesystem
+WASMLIBDIR := share/faust
 wasmlib: $(FAUSTDIR) $(FAUSTDIR)/Makefile
 	@$(MAKE) checkemcc
-	mkdir -p wasm-libraries && cp ../libraries/*.lib ../libraries/old/*.lib wasm-libraries
-	$(CMAKE) --build $(FAUSTDIR) --target wasmlib $(BUILDOPT)
-	rm -rf wasm-libraries
+	mkdir -p $(WASMFS)/$(WASMLIBDIR) && cp ../libraries/*.lib ../libraries/old/*.lib $(WASMFS)/$(WASMLIBDIR)
+	mkdir -p $(WASMFS)/rsrc && cp ../architecture/webaudio/mixer32.wasm $(WASMFS)/rsrc && cp ../architecture/webaudio/mixer64.wasm $(WASMFS)/rsrc
+	$(CMAKE) --build $(FAUSTDIR) --target wasmlib $(BUILDOPT) -- $(JOBS)
+	cp $(FAUSTDIR)/emcc/libfaust-wasm.* lib
+	rm -rf $(WASMFS)
 
 wasmglue: $(FAUSTDIR) $(FAUSTDIR)/Makefile
 	@$(MAKE) checkemcc
@@ -329,8 +364,8 @@ checkemcc:
 installLog := $(FAUSTDIR)/install_manifest.txt
 install:
 	if test -d ../.git; then git submodule update --init; fi
-	cd $(FAUSTDIR) && $(CMAKE) .. -DCMAKE_INSTALL_PREFIX=$(PREFIX)
-	$(CMAKE)  --build $(FAUSTDIR) --target install
+	cd $(FAUSTDIR) && $(CMAKE) .. -DCMAKE_INSTALL_PREFIX=$(PREFIX) $(CMAKEOPTS)
+	$(CMAKE) --build $(FAUSTDIR) --target install
 
 uninstall: $(installLog)
 	$(shell cat $(installLog) | xargs rm -f)

@@ -75,8 +75,7 @@ inline double GetCurrentTimeInUsec(void)
  * ZoneUI : this class collect zones in a set.
  */
 
-struct ZoneUI : public GenericUI
-{
+struct ZoneUI : public GenericUI {
     
     std::set<FAUSTFLOAT*> fZoneSet;
     
@@ -127,7 +126,7 @@ struct ZoneUI : public GenericUI
 /**
  * Timed signal processor that allows to handle the decorated DSP by 'slices'
  * that is, calling the 'compute' method several times and changing control
- * parameters between slices.
+ * parameters between slices. Timestamps are in usec.
  */
 
 class timed_dsp : public decorator_dsp {
@@ -218,7 +217,7 @@ class timed_dsp : public decorator_dsp {
 
     public:
 
-        timed_dsp(dsp* dsp):decorator_dsp(dsp), fDateUsec(0), fOffsetUsec(0), fFirstCallback(true)
+        timed_dsp(::dsp* dsp):decorator_dsp(dsp), fDateUsec(0), fOffsetUsec(0), fFirstCallback(true)
         {
             fInputsSlice = new FAUSTFLOAT*[dsp->getNumInputs()];
             fOutputsSlice = new FAUSTFLOAT*[dsp->getNumOutputs()];

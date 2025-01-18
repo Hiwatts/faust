@@ -131,7 +131,7 @@ using namespace std;
 #define ASSIST_INLET 	1
 #define ASSIST_OUTLET 	2
 
-#define EXTERNAL_VERSION    "0.86"
+#define EXTERNAL_VERSION    "0.87"
 #define STR_SIZE            512
 
 #include "faust/gui/GUI.h"
@@ -182,18 +182,24 @@ void faust_allocate(t_faust* x, int nvoices)
 {
     // Delete old
     delete x->m_dsp;
-    if (x->m_dspUI) x->m_dspUI->clear();
+    delete x->m_dspUI;
+    x->m_dspUI = new mspUI();
     
     if (nvoices > 0) {
+    #ifdef POST
         post("polyphonic DSP voices = %d", nvoices);
+    #endif
         x->m_dsp = new mydsp_poly(new mydsp(), nvoices, true, true);
-#ifdef POLY2
+    #ifdef POLY2
         x->m_dsp = new dsp_sequencer(x->m_dsp, new effect());
-#endif
+    #endif
     } else {
+    #ifdef POST
         post("monophonic DSP");
+    #endif
         // Create a DS/US + Filter adapted DSP
-        x->m_dsp = createSRAdapter<FAUSTFLOAT>(new mydsp(), DOWN_SAMPLING, UP_SAMPLING, FILTER_TYPE);
+        std::string error;
+        x->m_dsp = createSRAdapter<FAUSTFLOAT>(new mydsp(), error, DOWN_SAMPLING, UP_SAMPLING, FILTER_TYPE);
     }
     
 #ifdef MIDICTRL
@@ -371,11 +377,12 @@ void faust_make_json(t_faust* x)
 void* faust_new(t_symbol* s, short ac, t_atom* av)
 {
     bool midi_sync = false;
+    bool midi = false;
     int nvoices = 0;
     t_faust* x = (t_faust*)object_alloc(faust_class);
     
     mydsp* tmp_dsp = new mydsp();
-    MidiMeta::analyse(tmp_dsp, midi_sync, nvoices);
+    MidiMeta::analyse(tmp_dsp, midi, midi_sync, nvoices);
 #ifdef SOUNDFILE
     Max_Meta3 meta3;
     tmp_dsp->metadata(&meta3);
@@ -388,7 +395,8 @@ void* faust_new(t_symbol* s, short ac, t_atom* av)
     delete tmp_dsp;
     
     x->m_savedUI = new SaveLabelUI();
-    x->m_dspUI = new mspUI();
+    // allocation is done in faust_allocate
+    x->m_dspUI = NULL;
     x->m_dsp = NULL;
     x->m_json = NULL;
     x->m_mute = false;
@@ -564,20 +572,20 @@ void faust_assist(t_faust* x, void* b, long msg, long a, char* dst)
     if (msg == ASSIST_INLET) {
         if (a == 0) {
             if (x->m_dsp->getNumInputs() == 0) {
-                sprintf(dst, "(messages)");
+                snprintf(dst, 512, "(messages)");
             } else {
-                sprintf(dst, "(messages/signal) : Audio Input %ld", (a+1));
+                snprintf(dst, 512, "(messages/signal) : Audio Input %ld", (a+1));
             }
         } else if (a < x->m_dsp->getNumInputs()) {
-            sprintf(dst, "(signal) : Audio Input %ld", (a+1));
+            snprintf(dst, 512, "(signal) : Audio Input %ld", (a+1));
         }
     } else if (msg == ASSIST_OUTLET) {
         if (a < x->m_dsp->getNumOutputs()) {
-            sprintf(dst, "(signal) : Audio Output %ld", (a+1));
+            snprintf(dst, 512, "(signal) : Audio Output %ld", (a+1));
         } else if (a == x->m_dsp->getNumOutputs()) {
-            sprintf(dst, "(list) : [path, cur|init, min, max]*");
+            snprintf(dst, 512, "(list) : [path, cur|init, min, max]*");
         } else {
-            sprintf(dst, "(int) : raw MIDI bytes*");
+            snprintf(dst, 512, "(int) : raw MIDI bytes*");
         }
     }
 }
@@ -623,10 +631,7 @@ t_int* faust_perform(t_int* w)
     if (!x->m_mute && systhread_mutex_trylock(x->m_mutex) == MAX_ERR_NONE) {
         if (x->m_dsp) {
             x->m_dsp->compute(n, ((float**)&w[offset]), ((float**)&w[offset + x->m_dsp->getNumInputs()]));
-        #ifdef OSCCTRL
-            if (x->m_oscInterface) x->m_oscInterface->endBundle();
-        #endif
-            //faust_update_outputs(x);
+            // faust_update_outputs(x);
             // Use the right outlet to output messages
             faust_dump_outputs(x);
         }
@@ -706,10 +711,10 @@ void ext_main(void* r)
     class_dspinit(c);
     class_register(CLASS_BOX, c);
     faust_class = c;
-    
+#ifdef POST
     post((char*)"Faust DSP object v%s (sample = 32 bits code = 32 bits)", EXTERNAL_VERSION);
-    post((char*)"Copyright (c) 2012-2022 Grame");
-   
+    post((char*)"Copyright (c) 2012-2025 Grame");
+#endif
     Max_Meta1 meta1;
     tmp_dsp->metadata(&meta1);
     if (meta1.fCount > 0) {

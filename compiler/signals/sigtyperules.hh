@@ -4,16 +4,16 @@
     Copyright (C) 2003-2018 GRAME, Centre National de Creation Musicale
     ---------------------------------------------------------------------
     This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation; either version 2.1 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+    GNU Lesser General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
+    You should have received a copy of the GNU Lesser General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -25,19 +25,21 @@
 #include "signals.hh"
 #include "sigtype.hh"
 
-extern bool gVectorSwitch;
-
 /** \file sigtyperules.hh
- * API to the typing system of signals
  *
- * Two functions are provided :
+ * API to the typing system of signals.
  *
- * \li void typeAnnotation(Tree term)       : annotates a signal term and its subterms with type information
- * \li Type getCertifiedSigType(Tree term)  : return the type of a previously annotated signal term
+ * Two functions are provided:
  *
- * TypeAnnotation must be called first to annotate a signal or a list of signals, before being able to
- * call getCertifiedType on any subterms. GetCertifiedType will produce an error if a term was not
- * previously annotated.
+ * \li void typeAnnotation(Tree term) : annotates a signal term and its subterms with type
+ * information
+ *
+ * \li Type getCertifiedSigType(Tree term) : returns the type of a previously annotated
+ * signal term
+ *
+ * TypeAnnotation must be called first to annotate a signal or a list of signals, before being able
+ * to call getCertifiedSigType on any subterms. GetCertifiedSigType will produce an error if a term
+ * was not previously annotated.
  *
  **/
 
@@ -49,20 +51,22 @@ extern bool gVectorSwitch;
 void typeAnnotation(Tree sig, bool causality);
 
 /**
- *	Return the type of a previously annotated signal term
+ *  Return the type of a previously annotated signal term,
+ *  fails with faustassert if the term is not typed.
+ *  @param sig the signal we want to know the type
  */
 ::Type getCertifiedSigType(Tree term);
 
 /**
- *	print annotation statistics
+ * Retrieve the type annotation of sig
+ * @param sig the signal we want to know the type
  */
-void annotationStatistics();
+::Type getSigType(Tree sig);
 
 /**
- * convert a constant signal into a double using its bounds (not very safe)
- * @param sig the signal to be converted
- * @return the mean of its biggest and smallest value
+ * Retrieve the type annotation of sig
+ * @param sig the signal we want to know the type
  */
-double constSig2double(Tree sig);
+void setSigType(Tree sig, ::Type);
 
 #endif

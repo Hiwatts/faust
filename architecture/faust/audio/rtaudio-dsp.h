@@ -27,7 +27,7 @@
 
 #include <stdio.h>
 #include <assert.h>
-#include <RtAudio.h>
+#include <rtaudio/RtAudio.h>
 #include <stdlib.h>
 
 #include "faust/audio/audio.h"
@@ -47,7 +47,7 @@ class rtaudio : public audio {
     
     protected:
         
-        dsp* fDsp;
+        ::dsp* fDSP;
         RtAudio fAudioDAC;
         unsigned int fSampleRate;
         unsigned int fBufferSize;
@@ -62,18 +62,18 @@ class rtaudio : public audio {
         {
             AVOIDDENORMALS;
             
-            float* inputs[fDsp->getNumInputs()];
-            float* outputs[fDsp->getNumOutputs()];
+            float** inputs = (float**)alloca(fDSP->getNumInputs() * sizeof(float*));
+            float** outputs = (float**)alloca(fDSP->getNumOutputs() * sizeof(float*));
             
-            for (int i = 0; i < fDsp->getNumInputs(); i++) {
+            for (int i = 0; i < fDSP->getNumInputs(); i++) {
                 inputs[i] = &(static_cast<float*>(inbuf))[i * frames];
             }
-            for (int i = 0; i < fDsp->getNumOutputs(); i++) {
+            for (int i = 0; i < fDSP->getNumOutputs(); i++) {
                 outputs[i] = &(static_cast<float*>(outbuf))[i * frames];
             }
 
             // process samples
-            fDsp->compute(streamTime * 1000000., frames, inputs, outputs);
+            fDSP->compute(streamTime * 1000000., frames, inputs, outputs);
             return 0;
         }
     
@@ -87,21 +87,29 @@ class rtaudio : public audio {
       
     public:
         
-        rtaudio(int srate, int bsize) : fDsp(0),
+        rtaudio(int srate, int bsize) : fDSP(nullptr),
                 fSampleRate(srate), fBufferSize(bsize), 
                 fDevNumInChans(0), fDevNumOutChans(0) {}
             
         virtual ~rtaudio() 
-        {   
+        {
+#if RTAUDIO_VERSION_MAJOR < 6
             try {
                 fAudioDAC.stopStream();
                 fAudioDAC.closeStream();
             } catch (RtAudioError& e) {
                 std::cout << '\n' << e.getMessage() << '\n' << std::endl;
             }
+#else
+            RtAudioErrorType err = fAudioDAC.stopStream();
+            if (err != RTAUDIO_NO_ERROR) {
+                std::cout << '\n' << fAudioDAC.getErrorText() << '\n' << std::endl;
+            }
+            fAudioDAC.closeStream();
+#endif
         }
         
-        virtual bool init(const char* name, dsp* DSP)
+        virtual bool init(const char* name, ::dsp* DSP)
         {
             if (init(name, DSP->getNumInputs(), DSP->getNumOutputs())) {
                 setDsp(DSP);
@@ -134,35 +142,47 @@ class rtaudio : public audio {
             
             RtAudio::StreamOptions options;
             options.flags |= RTAUDIO_NONINTERLEAVED;
-         
+
+#if RTAUDIO_VERSION_MAJOR < 6
             try {
-                fAudioDAC.openStream(((numOutputs > 0) ? &oParams : NULL), 
-                    ((numInputs > 0) ? &iParams : NULL), FORMAT, 
+                fAudioDAC.openStream(((numOutputs > 0) ? &oParams : NULL),
+                    ((numInputs > 0) ? &iParams : NULL), FORMAT,
                     fSampleRate, &fBufferSize, audioCallback, this, &options);
             } catch (RtAudioError& e) {
                 std::cout << '\n' << e.getMessage() << '\n' << std::endl;
                 return false;
             }
-               
             return true;
+#else
+            RtAudioErrorType err = fAudioDAC.openStream(
+                ((numOutputs > 0) ? &oParams : NULL),
+                ((numInputs > 0) ? &iParams : NULL), FORMAT,
+                fSampleRate, &fBufferSize, audioCallback, this, &options);
+            if (err != RTAUDIO_NO_ERROR) {
+                std::cout << '\n' << fAudioDAC.getErrorText() << '\n' << std::endl;
+                return false;
+            }
+            return true;
+#endif
         }
         
-        void setDsp(dsp* DSP)
+        void setDsp(::dsp* DSP)
         {
-            fDsp = DSP;
+            fDSP = DSP;
             
-            if (fDsp->getNumInputs() > fDevNumInChans || fDsp->getNumOutputs() > fDevNumOutChans) {
+            if (fDSP->getNumInputs() > fDevNumInChans || fDSP->getNumOutputs() > fDevNumOutChans) {
                 printf("DSP has %d inputs and %d outputs, physical inputs = %d physical outputs = %d \n", 
-                       fDsp->getNumInputs(), fDsp->getNumOutputs(), 
+                       fDSP->getNumInputs(), fDSP->getNumOutputs(),
                        fDevNumInChans, fDevNumOutChans);
-                fDsp = new dsp_adapter(fDsp, fDevNumInChans, fDevNumOutChans, fBufferSize);
+                fDSP = new dsp_adapter(fDSP, fDevNumInChans, fDevNumOutChans, fBufferSize);
             }
             
-            fDsp->init(fSampleRate);
+            fDSP->init(fSampleRate);
         }
         
         virtual bool start() 
         {
+#if RTAUDIO_VERSION_MAJOR < 6
             try {
                 fAudioDAC.startStream();
             } catch (RtAudioError& e) {
@@ -170,15 +190,30 @@ class rtaudio : public audio {
                 return false;
             }
             return true;
+#else
+            RtAudioErrorType err = fAudioDAC.startStream();
+            if (err != RTAUDIO_NO_ERROR) {
+                std::cout << '\n' << fAudioDAC.getErrorText() << '\n' << std::endl;
+                return false;
+            }
+            return true;
+#endif
         }
         
         virtual void stop() 
         {
+#if RTAUDIO_VERSION_MAJOR < 6
             try {
                 fAudioDAC.stopStream();
             } catch (RtAudioError& e) {
                 std::cout << '\n' << e.getMessage() << '\n' << std::endl;
             }
+#else
+            RtAudioErrorType err = fAudioDAC.stopStream();
+            if (err != RTAUDIO_NO_ERROR) {
+                std::cout << '\n' << fAudioDAC.getErrorText() << '\n' << std::endl;
+            }
+#endif
         }
         
         virtual int getBufferSize() 

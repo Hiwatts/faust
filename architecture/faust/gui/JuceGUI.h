@@ -315,7 +315,7 @@ struct CustomLookAndFeel : public juce::LookAndFeel_V3
             cursorShadow.addRectangle(rectX-1, rectY-1, rectWidth+2, rectHeight+2);
 
             juce::AffineTransform t = juce::AffineTransform::translation(-rectWidth + 2, rectHeight/2);
-            t = t.rotated((angle - juce::float_Pi/2), centreX, centreY);
+            t = t.rotated((angle - juce::MathConstants<float>::pi/2), centreX, centreY);
 
             cursor.applyTransform(t);
             cursorShadow.applyTransform(t);
@@ -715,6 +715,9 @@ class uiCheckButton : public uiComponent, private juce::Button::Listener
         {
             int x = 0;
             int y = (getHeight()-h)/2;
+        
+            // Be sure the cache is initialized with the proper default value
+            fCache = 0;
             
             fCheckButton.setButtonText(label);
             fCheckButton.setBounds(x, y, w, h);
@@ -726,15 +729,16 @@ class uiCheckButton : public uiComponent, private juce::Button::Listener
         /** Indicate to the FAUST module when the button is toggled or not. */
         void buttonClicked(juce::Button* button) override
         {
-            //std::cout << getName() << " : " << button->getToggleState() << std::endl;
             modifyZone(button->getToggleState());
         }
 
         void reflectZone() override
         {
             FAUSTFLOAT v = *fZone;
+            if (v != fCache) {
+                fCheckButton.triggerClick();
+            }
             fCache = v;
-            fCheckButton.triggerClick();
         }
 
         /** Set the good coordinates and size to the juce::ToggleButton widget, whenever the layout size changes. */
@@ -786,16 +790,16 @@ class uiMenu : public uiComponent, private juce::ComboBox::Listener
                 int item = 1;
 
                 // Go through all the Menu's items.
-                for (int i = 0; i < names.size(); i++) {
+                for (size_t i = 0; i < names.size(); i++) {
                     double v = values[i];
                     if ((v >= lo) && (v <= hi)) {
                         // It is a valid value : add corresponding menu item
-                        // item astrating at 1 because index 0 is reserved for a non-defined item.
+                        // item is starting at 1 because index 0 is reserved for a non-defined item.
                         fComboBox.addItem(juce::String(names[i].c_str()), item++);
                         fValues.push_back(v);
 
                         // Check if this item is a good candidate to represent the current value
-                        double delta = fabs(cur-v);
+                        double delta = fabs(cur - v);
                         if (delta < mindelta) {
                             mindelta = delta;
                             defaultitem = fComboBox.getNumItems();
@@ -804,7 +808,7 @@ class uiMenu : public uiComponent, private juce::ComboBox::Listener
                 }
                 // check the best candidate to represent the current value
                 if (defaultitem > -1) {
-                    fComboBox.setSelectedItemIndex(defaultitem);
+                    fComboBox.setSelectedItemIndex(defaultitem - 1);
                 }
             }
 
@@ -828,15 +832,15 @@ class uiMenu : public uiComponent, private juce::ComboBox::Listener
             int defaultitem = -1;
             double mindelta = FLT_MAX;
 
-            for (unsigned int i = 0; i < fValues.size(); i++) {
-                double delta = fabs(fValues[i]-v);
+            for (size_t i = 0; i < fValues.size(); i++) {
+                double delta = fabs(fValues[i] - v);
                 if (delta < mindelta) {
                     mindelta = delta;
-                    defaultitem = i;
+                    defaultitem = int(i);
                 }
             }
             if (defaultitem > -1) {
-                fComboBox.setSelectedItemIndex(defaultitem);
+                fComboBox.setSelectedItemIndex(defaultitem - 1);
             }
         }
 
@@ -890,7 +894,7 @@ class uiRadioButton : public uiComponent, private juce::Button::Listener
             juce::ToggleButton* defaultbutton = 0;
             double mindelta = FLT_MAX;
 
-            for (int i = 0; i < names.size(); i++) {
+            for (size_t i = 0; i < names.size(); i++) {
                 double v = values[i];
                 if ((v >= lo) && (v <= hi)) {
 
@@ -926,11 +930,11 @@ class uiRadioButton : public uiComponent, private juce::Button::Listener
             int defaultitem = -1;
             double mindelta = FLT_MAX;
 
-            for (unsigned int i = 0; i < fValues.size(); i++) {
+            for (size_t i = 0; i < fValues.size(); i++) {
                 double delta = fabs(fValues[i]-v);
                 if (delta < mindelta) {
                     mindelta = delta;
-                    defaultitem = i;
+                    defaultitem = int(i);
                 }
             }
             if (defaultitem > -1) {
@@ -944,12 +948,12 @@ class uiRadioButton : public uiComponent, private juce::Button::Listener
             int width, height;
             fIsVertical ? (height = (getHeight() - kNameHeight) / fButtons.size()) : (width = getWidth() / fButtons.size());
 
-            for (int i = 0; i < fButtons.size(); i++) {
+            for (size_t i = 0; i < fButtons.size(); i++) {
                 if (fIsVertical) {
-                    fButtons.operator[](i)->setBounds(0, i * height + kNameHeight, getWidth(), height);
+                    fButtons.operator[](int(i))->setBounds(0, int(i) * height + kNameHeight, getWidth(), height);
                 } else {
                     // kNameHeight pixels offset for the title
-                    fButtons.operator[](i)->setBounds(i * width, kNameHeight, width, getHeight() - kNameHeight);
+                    fButtons.operator[](int(i))->setBounds(int(i) * width, kNameHeight, width, getHeight() - kNameHeight);
                 }
             }
         }
@@ -1016,7 +1020,7 @@ class uiVUMeter : public uiComponent, public juce::SettableTooltipClient, public
             setLabelPos();
             fLabel.setEditable(false, false, false);
             fLabel.setJustificationType(juce::Justification::centred);
-            fLabel.setText(juce::String((int)*fZone) + " " + fUnit, juce::dontSendNotification);
+            fLabel.setText(juce::String(*fZone) + " " + fUnit, juce::dontSendNotification);
             fLabel.setTooltip(tooltip);
             addAndMakeVisible(fLabel);
         }
@@ -1433,7 +1437,7 @@ class uiVUMeter : public uiComponent, public juce::SettableTooltipClient, public
             } else {
                 fLevel = range((rawLevel-fMin)/(fMax-fMin));
             }
-            fLabel.setText(juce::String((int)rawLevel) + " " + fUnit, juce::dontSendNotification);
+            fLabel.setText(juce::String(rawLevel) + " " + fUnit, juce::dontSendNotification);
         }
         
         FAUSTFLOAT range(FAUSTFLOAT level) { return (level > fMax) ? fMax : ((level < fMin) ? fMin : level); }
@@ -1592,8 +1596,10 @@ public:
      * \brief   Constructor.
      * \details Initalize the juce::TabbedComponent tabs to be at top, and the uiTabBox size at 0
      */
-    uiTabBox():uiBase(),juce::TabbedComponent(juce::TabbedButtonBar::TabsAtTop)
-    {}
+    uiTabBox(juce::String label):uiBase(),juce::TabbedComponent(juce::TabbedButtonBar::TabsAtTop)
+    {
+        setName(label);
+    }
     
     /**
      * Initialize all his child ratios (1 uiBox per tabs), the LookAndFeel
@@ -1808,7 +1814,7 @@ class uiBox : public uiBase, public juce::Component
         void paint(juce::Graphics& g) override
         {
             // Fill the box background in gray shades
-            g.setColour(juce::Colours::black.withAlpha(0.05f));
+            g.setColour(juce::Colours::black.withAlpha(0.5f)); // 0.05, used until 2023-08-5, is not readable on the Mac
             g.fillRect(getLocalBounds());
 
             // Display the name if it's needed
@@ -1871,7 +1877,7 @@ class JuceGUI : public GUI, public MetaDataUI, public juce::Component
             // and not just n checkButtons :
             // TODO : check currently unused checkButtonWidth...
             int checkButtonWidth = 0;
-            for (int i = 0; i < names.size(); i++) {
+            for (size_t i = 0; i < names.size(); i++) {
                 // Checking the maximum of horizontal space needed to display the radio buttons
                 checkButtonWidth = juce::jmax(juce::Font().getStringWidth(juce::String(names[i])) + 15, checkButtonWidth);
             }
@@ -1942,7 +1948,7 @@ class JuceGUI : public GUI, public MetaDataUI, public juce::Component
         /** Initialize the uiTabBox component to be visible. */
         virtual void openTabBox(const char* label) override
         {
-            openBox(new uiTabBox());
+            openBox(new uiTabBox(juce::String(label)));
         }
         
         /** Add a new vertical box to the user interface. */
@@ -1977,12 +1983,14 @@ class JuceGUI : public GUI, public MetaDataUI, public juce::Component
         /** Add an horizontal slider to the user interface. */
         virtual void addHorizontalSlider(const char* label, FAUSTFLOAT* zone, FAUSTFLOAT init, FAUSTFLOAT min, FAUSTFLOAT max, FAUSTFLOAT step) override
         {
+            if (isHidden(zone)) return;
             addSlider(label, zone, init, min, max, step, kHSliderWidth, kHSliderHeight, HSlider);
         }
         
         /** Add a vertical slider to the user interface. */
         virtual void addVerticalSlider(const char* label, FAUSTFLOAT* zone, FAUSTFLOAT init, FAUSTFLOAT min, FAUSTFLOAT max, FAUSTFLOAT step) override
         {
+            if (isHidden(zone)) return;
             int newWidth = juce::jmax(juce::Font().getStringWidth(juce::String(label)), kVSliderWidth) + kMargin;
             addSlider(label, zone, init, min, max, step, newWidth, kVSliderHeight, VSlider);
         }
@@ -1990,12 +1998,14 @@ class JuceGUI : public GUI, public MetaDataUI, public juce::Component
         /** Add a button to the user interface. */
         virtual void addButton(const char* label, FAUSTFLOAT* zone) override
         {
+            if (isHidden(zone)) return;
             fCurrentBox->add(new uiButton(this, zone, kButtonWidth, kButtonHeight, juce::String(label), juce::String(fTooltip[zone])));
         }
         
         /** Add a check button to the user interface. */
         virtual void addCheckButton(const char* label, FAUSTFLOAT* zone) override
         {
+            if (isHidden(zone)) return;
             // newWidth is his text size, plus the check box size
             int newWidth = juce::Font().getStringWidth(juce::String(label)) + kCheckButtonWidth;
             fCurrentBox->add(new uiCheckButton(this, zone, newWidth, kCheckButtonHeight, juce::String(label), juce::String(fTooltip[zone])));
@@ -2004,6 +2014,7 @@ class JuceGUI : public GUI, public MetaDataUI, public juce::Component
         /** Add a numerical entry to the user interface. */
         virtual void addNumEntry(const char* label, FAUSTFLOAT* zone, FAUSTFLOAT init, FAUSTFLOAT min, FAUSTFLOAT max, FAUSTFLOAT step) override
         {
+            if (isHidden(zone)) return;
             // kMargin pixels between the slider and his name
             int newWidth = juce::Font().getStringWidth(juce::String(label)) + kNumEntryWidth + kMargin;
             fCurrentBox->add(new uiSlider(this, zone, newWidth, kNumEntryHeight, *zone, min, max, step, juce::String(label), juce::String(fUnit[zone]), juce::String(fTooltip[zone]), getScale(zone), NumEntry));
@@ -2012,12 +2023,14 @@ class JuceGUI : public GUI, public MetaDataUI, public juce::Component
         /** Add a vertical bargraph to the user interface. */
         virtual void addVerticalBargraph(const char* label, FAUSTFLOAT* zone, FAUSTFLOAT min, FAUSTFLOAT max) override
         {
+            if (isHidden(zone)) return;
             addBargraph(label, zone, min, max, kVBargraphWidth, kVBargraphHeight, VVUMeter);
         }
         
         /** Add a vertical bargraph to the user interface. */
         virtual void addHorizontalBargraph(const char* label, FAUSTFLOAT* zone, FAUSTFLOAT min, FAUSTFLOAT max) override
         {
+            if (isHidden(zone)) return;
             addBargraph(label, zone, min, max, kHBargraphWidth, kHBargraphHeight, HVUMeter);
         }
       

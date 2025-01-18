@@ -38,6 +38,26 @@
 
 using namespace std;
 
+// Run a DSP with a GUI
+static void runAudio(dsp* dsp, const char* name, int argc, char* argv[])
+{
+    // Allocate audio driver
+    jackaudio audio;
+    audio.init("Test", dsp);
+    
+    // Create GUI
+    GTKUI gtk_ui = GTKUI((char*)name, &argc, &argv);
+    dsp->buildUserInterface(&gtk_ui);
+    
+    // Start real-time processing
+    audio.start();
+    
+    // Start GUI
+    gtk_ui.run();
+    
+    // Cleanup
+    audio.stop();
+}
 
 /**
  * Return the current runtime sample rate.
@@ -46,7 +66,7 @@ using namespace std;
  *
  * @return the current runtime sample rate.
  */
-inline Signal getSampleRate()
+inline Signal SR()
 {
     return sigMin(sigReal(192000.0), sigMax(sigReal(1.0), sigFConst(SType::kSInt, "fSamplingFreq", "<math.h>")));
 }
@@ -58,11 +78,20 @@ inline Signal getSampleRate()
  *
  * @return the current runtime buffer size.
  */
-inline Signal getBufferSize()
+inline Signal BS()
 {
     return sigFVar(SType::kSInt, "count", "<math.h>");
 }
 
+/**
+* Creates a foreign function*
+*/
+inline Box SINH()
+{
+    tvec signals;
+    signals.push_back(sigInput(0));
+    return sigFFun(SType::kSReal, {"sinhf", "sinh", "sinhl", "sinhfx"}, { SType::kSReal }, "<FOO.h>",  "", signals);
+}
 
 #define COMPILER(exp)    \
 {                        \
@@ -71,16 +100,27 @@ inline Signal getBufferSize()
     destroyLibContext(); \
 }                        \
     
-static void compile(const string& name, tvec signals, int argc = 0, const char* argv[] = nullptr)
+static void compile(const string& name_app, tvec signals, int argc = 0, const char* argv[] = nullptr)
 {
-    string error_msg;
-    dsp_factory_base* factory = createCPPDSPFactoryFromSignals(name, signals, argc, argv, error_msg);
-    if (factory) {
-        factory->write(&cout);
-        delete(factory);
+    string error_msg, source = createSourceFromSignals(name_app, signals, "cpp", argc, argv, error_msg);
+    if (source != "") {
+        cout << source;
     } else {
         cerr << error_msg;
     }
+}
+
+// process = ffunction(float sinhf|sinh|sinhl|sinhfx(float), <math.h>, "");
+
+static void test0()
+{
+    COMPILER
+    (
+        tvec signals;
+        signals.push_back(SINH());
+     
+        compile("test0", signals);
+    )
 }
 
 // process = 0.5;
@@ -119,8 +159,8 @@ static void test3()
     (
         tvec signals;
         Signal in1 = sigInput(0);
-        signals.push_back(sigDelay(sigAdd(in1, sigReal(0.5)), sigReal(500)));
-        signals.push_back(sigDelay(sigMul(in1, sigReal(1.5)), sigReal(3000)));
+        signals.push_back(sigDelay(sigAdd(in1, sigReal(0.5)), sigInt(500)));
+        signals.push_back(sigDelay(sigMul(in1, sigReal(1.5)), sigInt(3000)));
          
         compile("test3", signals);
     )
@@ -134,8 +174,8 @@ static void test4()
     (
         tvec signals;
         Signal in1 = sigInput(0);
-        signals.push_back(sigAdd(sigDelay(in1, sigReal(500)), sigReal(0.5)));
-        signals.push_back(sigMul(sigDelay(in1, sigReal(3000)), sigReal(1.5)));
+        signals.push_back(sigAdd(sigDelay(in1, sigInt(500)), sigReal(0.5)));
+        signals.push_back(sigMul(sigDelay(in1, sigInt(3000)), sigReal(1.5)));
 
         compile("test4", signals);
     )
@@ -149,8 +189,8 @@ static void test5()
     (
         tvec signals;
         Signal in1 = sigInput(0);
-        signals.push_back(sigDelay(sigAdd(in1, sigReal(0.5)), sigReal(500)));
-        signals.push_back(sigSin(sigDelay(sigDelay(sigAdd(in1, sigReal(0.5)), sigReal(500)), sigReal(600))));
+        signals.push_back(sigDelay(sigAdd(in1, sigReal(0.5)), sigInt(500)));
+        signals.push_back(sigSin(sigDelay(sigDelay(sigAdd(in1, sigReal(0.5)), sigInt(500)), sigInt(600))));
         
         compile("test5", signals);
     )
@@ -164,11 +204,12 @@ static void test6()
     
     tvec signals;
     Signal in1 = sigInput(0);
-    signals.push_back(sigDelay(sigAdd(in1, sigReal(0.5)), sigReal(500)));
-    signals.push_back(sigDelay(sigMul(in1, sigReal(1.5)), sigReal(3000)));
+    signals.push_back(sigDelay(sigAdd(in1, sigReal(0.5)), sigInt(500)));
+    signals.push_back(sigDelay(sigMul(in1, sigReal(1.5)), sigInt(3000)));
     
     // Vector compilation
-    compile("test6", signals, 4, (const char* []){ "-vec", "-lv", "1" , "-double"});
+    const char* argv[] = { "-vec", "-lv", "1" , "-double" };
+    compile("test6", signals, 4, argv);
 
     destroyLibContext();
 }
@@ -181,8 +222,8 @@ static void test7()
     (
         tvec signals;
         Signal in1 = sigInput(0);
-        signals.push_back(sigDelay(sigAdd(in1, sigReal(0.5)), sigReal(500)));
-        signals.push_back(sigAtan2(sigDelay(sigMul(in1, sigReal(1.5)), sigReal(3000)), sigReal(0.5)));
+        signals.push_back(sigDelay(sigAdd(in1, sigReal(0.5)), sigInt(500)));
+        signals.push_back(sigAtan2(sigDelay(sigMul(in1, sigReal(1.5)), sigInt(3000)), sigReal(0.5)));
 
         compile("test7", signals);
     )
@@ -195,11 +236,17 @@ static void equivalent1()
     COMPILER
     (
          tvec signals;
-         Signal s1 = sigAdd(sigDelay(sigInput(0), sigReal(500)), sigReal(0.5));
+         Signal s1 = sigAdd(sigDelay(sigInput(0), sigInt(500)), sigReal(0.5));
          signals.push_back(s1);
          signals.push_back(s1);
-     
+         
          compile("equivalent1", signals);
+     
+         // Print the signals
+         cout << "\nPrint the signals\n";
+         for (size_t i = 0; i < signals.size(); i++) {
+             cout << printSignal(signals[i], false, INT_MAX);
+         }
      )
 }
 
@@ -208,11 +255,111 @@ static void equivalent2()
     COMPILER
     (
          tvec signals;
-         signals.push_back(sigAdd(sigDelay(sigInput(0), sigReal(500)), sigReal(0.5)));
-         signals.push_back(sigAdd(sigDelay(sigInput(0), sigReal(500)), sigReal(0.5)));
+         signals.push_back(sigAdd(sigDelay(sigInput(0), sigInt(500)), sigReal(0.5)));
+         signals.push_back(sigAdd(sigDelay(sigInput(0), sigInt(500)), sigReal(0.5)));
      
          compile("equivalent2", signals);
+     
+         // Print the signals
+         cout << "\nPrint the signals\n";
+         for (size_t i = 0; i < signals.size(); i++) {
+             cout << printSignal(signals[i], false, INT_MAX);
+         }
     )
+}
+
+// Signals in normal form
+
+static void normalform()
+{
+    COMPILER
+    (
+        tvec signals;
+        signals.push_back(sigAdd(sigAdd(sigDelay(sigDelay(sigInput(0), sigReal(500)), sigReal(200)), sigReal(0.5)), sigReal(3)));
+        signals.push_back(sigMul(sigMul(sigDelay(sigInput(0), sigInt(500)), sigReal(0.5)), sigReal(4)));
+
+        compile("normalform", signals);
+
+        // Print the signals
+        cout << "\nPrint the signals\n";
+        for (size_t i = 0; i < signals.size(); i++) {
+            cout << printSignal(signals[i], false, INT_MAX);
+        }
+     
+        cout << "\nPrint the signals in short form\n";
+        for (size_t i = 0; i < signals.size(); i++) {
+             cout << printSignal(signals[i], false, 128);
+        }
+
+        cout << "\nPrint the signals in shared form\n";
+        for (size_t i = 0; i < signals.size(); i++) {
+            cout << printSignal(signals[i], true, INT_MAX);
+        }
+
+        // Compute normal form
+        tvec nf = simplifyToNormalForm2(signals);
+     
+        cout << "\nPrint the signals in normal form\n";
+        for (size_t i = 0; i < nf.size(); i++) {
+            cout << printSignal(nf[i], false, INT_MAX);
+        }
+     
+        cout << "\nPrint the signals in short form\n";
+        for (size_t i = 0; i < nf.size(); i++) {
+            cout << printSignal(nf[i], false, 128);
+        }
+
+        cout << "\nPrint the signals in normal form in shared mode\n";
+        for (size_t i = 0; i < nf.size(); i++) {
+            cout << printSignal(nf[i], true, INT_MAX);
+        }
+     )
+}
+
+static void intervals()
+{
+    COMPILER
+    (
+        tvec signals;
+     
+        Signal s1 = sigAdd(sigAdd(sigDelay(sigDelay(sigInput(0), sigReal(500)), sigReal(200)), sigReal(0.5)), sigReal(3));
+        Signal s2 = sigMul(sigMul(sigDelay(sigInput(0), sigInt(500)), sigReal(0.5)), sigReal(4));
+        signals.push_back(s1);
+        signals.push_back(s2);
+         
+        compile("intervals1", signals);
+     
+        Interval i1 = getSigInterval(s1);
+        Interval i2 = getSigInterval(s2);
+     
+        cout << i1 << endl;
+        cout << i2 << endl;
+     
+        Interval i3(48);
+        Interval i4(-10, 10, 48);
+        setSigInterval(s1, i3);
+        setSigInterval(s2, i4);
+     
+        // Compute normal form
+        tvec nf = simplifyToNormalForm2(signals);
+         
+        cout << "\nPrint the signals in normal form\n";
+        for (size_t i = 0; i < nf.size(); i++) {
+            cout << printSignal(nf[i], false, INT_MAX);
+        }
+         
+        cout << "\nPrint the signals in short form\n";
+        for (size_t i = 0; i < nf.size(); i++) {
+            cout << printSignal(nf[i], false, 128);
+        }
+         
+        cout << "\nPrint the signals in normal form in shared mode\n";
+        for (size_t i = 0; i < nf.size(); i++) {
+            cout << printSignal(nf[i], true, INT_MAX);
+        }
+     
+        compile("intervals2", signals);
+     )
 }
 
 // process = @(+(0.5), 500) * vslider("Vol", 0.5, 0, 1, 0.01);
@@ -224,7 +371,7 @@ static void test8()
         tvec signals;
         Signal in1 = sigInput(0);
         Signal slider = sigVSlider("Vol", sigReal(0.5), sigReal(0.0), sigReal(1.0), sigReal(0.01));
-        signals.push_back(sigMul(slider, sigDelay(sigAdd(in1, sigReal(0.5)), sigReal(500))));
+        signals.push_back(sigMul(slider, sigDelay(sigAdd(in1, sigReal(0.5)), sigInt(500))));
         
         compile("test8", signals);
     )
@@ -266,6 +413,46 @@ static void test10()
     )
 }
 
+// Alternate way of writing
+static void test10bis()
+{
+    COMPILER
+    (
+        Signal in1 = sigInput(0);
+        tvec ins;
+        ins.push_back(sigAdd(sigSelfN(0), in1));
+        tvec outs = sigRecursionN(ins);
+     
+        compile("test10bis", outs);
+    )
+}
+
+// mutual recursion
+
+/*
+process = (cross : (+,+)) ~ (*(0.9),*(0.5))
+with {
+    // Route a,b, (recursive) and c,d (inputs) signals
+    cross(a,b,c,d) = d,b,c,a;
+};
+*/
+
+static void test10ter()
+{
+    COMPILER
+    (
+        Signal in0 = sigInput(0);
+        Signal in1 = sigInput(1);
+        tvec ins;
+        ins.push_back(sigAdd(sigMul(sigSelfN(1), sigReal(0.5)), in0));
+        ins.push_back(sigAdd(sigMul(sigSelfN(0), sigReal(0.9)), in1));
+        tvec outs = sigRecursionN(ins);
+        
+        compile("test10ter", outs);
+     )
+}
+
+
 // import("stdfaust.lib");
 // process = ma.SR, ma.BS;
 
@@ -274,8 +461,8 @@ static void test11()
     COMPILER
     (
         tvec signals;
-        signals.push_back(getSampleRate());
-        signals.push_back(getBufferSize());
+        signals.push_back(SR());
+        signals.push_back(BS());
         
         compile("test11", signals);
     )
@@ -380,7 +567,7 @@ static Signal decimalpart(Signal x)
 
 static Signal phasor(Signal f)
 {
-    return sigRecursion(decimalpart(sigAdd(sigSelf(), sigDiv(f, getSampleRate()))));
+    return sigRecursion(decimalpart(sigAdd(sigSelf(), sigDiv(f, SR()))));
 }
 
 static void test17()
@@ -436,9 +623,9 @@ static void test19()
          Signal part = sigInt(0);
          // Wrapped index to avoid reading outside the buffer
          Signal wridx = sigIntCast(sigMax(sigInt(0), sigMin(rdx, sigSub(sigSoundfileLength(sf, sigInt(0)), sigInt(1)))));
-         // Accessing part 0
+         // Accessing part 0 length
          signals.push_back(sigSoundfileLength(sf, part));
-         // Accessing part 0
+         // Accessing part 0 SR
          signals.push_back(sigSoundfileRate(sf, part));
          // Accessing chan 0 and part 0, with a wrapped read index
          signals.push_back(sigSoundfileBuffer(sf, sigInt(0), part, wridx));
@@ -490,47 +677,82 @@ static void test21()
 // Using the LLVM backend.
 static void test22(int argc, char* argv[])
 {
+    cout << "test22\n";
+    string error_msg;
+    llvm_dsp_factory* factory = nullptr;
+    
     createLibContext();
     {
         tvec signals;
         signals.push_back(osc(sigVSlider("h:Oscillator/Freq1", sigReal(300), sigReal(100), sigReal(2000), sigReal(0.01))));
         signals.push_back(osc(sigVSlider("h:Oscillator/Freq2", sigReal(500), sigReal(100), sigReal(2000), sigReal(0.01))));
      
-        string error_msg;
-        llvm_dsp_factory* factory = createDSPFactoryFromSignals("FaustDSP", signals, 0, nullptr, "", error_msg);
+        factory = createDSPFactoryFromSignals("FaustDSP", signals, 0, nullptr, "", error_msg);
+    }
+    destroyLibContext();
     
-        if (factory) {
-            dsp* dsp = factory->createDSPInstance();
-            assert(dsp);
-            
-            // Allocate audio driver
-            jackaudio audio;
-            audio.init("Test", dsp);
+    // The factory can be used outside of the createLibContext/destroyLibContext scope
+    if (factory) {
+        dsp* dsp = factory->createDSPInstance();
+        assert(dsp);
+        runAudio(dsp, "Organ", argc, argv);
+        delete dsp;
+        deleteDSPFactory(factory);
+    } else {
+        cerr << "Cannot create factory" << error_msg << endl;
+    }
+}
 
-            // Create GUI
-            GTKUI gtk_ui = GTKUI((char*)"Organ", &argc, &argv);
-            dsp->buildUserInterface(&gtk_ui);
-            
-            // Start real-time processing
-            audio.start();
-            
-            // Start GUI
-            gtk_ui.run();
-            
-            // Cleanup
-            audio.stop();
-            delete dsp;
-            deleteDSPFactory(factory);
-        } else {
-            cerr << "Cannot create factory" << error_msg << endl;
+static void test22bis(int argc, char* argv[])
+{
+    cout << "test22\n";
+    string error_msg;
+    llvm_dsp_factory* factory1 = nullptr;
+    llvm_dsp_factory* factory2 = nullptr;
+    
+    createLibContext();
+    {
+        {
+            tvec signals;
+            signals.push_back(osc(sigVSlider("h:Oscillator/Freq1", sigReal(300), sigReal(100), sigReal(2000), sigReal(0.01))));
+            signals.push_back(osc(sigVSlider("h:Oscillator/Freq2", sigReal(500), sigReal(100), sigReal(2000), sigReal(0.01))));
+            factory1 = createDSPFactoryFromSignals("FaustDSP1", signals, 0, nullptr, "", error_msg);
+        }
+        
+        {
+            tvec signals;
+            signals.push_back(osc(sigVSlider("h:Oscillator/Foo1", sigReal(200), sigReal(100), sigReal(2000), sigReal(0.01))));
+            signals.push_back(osc(sigVSlider("h:Oscillator/Foo2", sigReal(700), sigReal(100), sigReal(2000), sigReal(0.01))));
+            factory2 = createDSPFactoryFromSignals("FaustDSP2", signals, 0, nullptr, "", error_msg);
         }
     }
     destroyLibContext();
+    
+    // The factories can be used outside of the createLibContext/destroyLibContext scope
+    if (factory1 && factory2) {
+        {
+            dsp* dsp = factory1->createDSPInstance();
+            assert(dsp);
+            runAudio(dsp, "Organ1", argc, argv);
+            delete dsp;
+        }
+        {
+            dsp* dsp = factory2->createDSPInstance();
+            assert(dsp);
+            runAudio(dsp, "Organ2", argc, argv);
+            delete dsp;
+        }
+        deleteDSPFactory(factory1);
+        deleteDSPFactory(factory2);
+    } else {
+        cerr << "Cannot create factories" << error_msg << endl;
+    }
 }
 
 // Using the Interpreter backend.
 static void test23(int argc, char* argv[])
 {
+    cout << "test23\n";
     interpreter_dsp_factory* factory = nullptr;
     string error_msg;
     
@@ -544,27 +766,11 @@ static void test23(int argc, char* argv[])
     }
     destroyLibContext();
     
-    // Use factory outside of the createLibContext/destroyLibContext scope
+    // The factory can be used outside of the createLibContext/destroyLibContext scope
     if (factory) {
         dsp* dsp = factory->createDSPInstance();
         assert(dsp);
-        
-        // Allocate audio driver
-        jackaudio audio;
-        audio.init("Test", dsp);
-        
-        // Create GUI
-        GTKUI gtk_ui = GTKUI((char*)"Organ", &argc, &argv);
-        dsp->buildUserInterface(&gtk_ui);
-        
-        // Start real-time processing
-        audio.start();
-        
-        // Start GUI
-        gtk_ui.run();
-        
-        // Cleanup
-        audio.stop();
+        runAudio(dsp, "Organ", argc, argv);
         delete dsp;
         deleteInterpreterDSPFactory(factory);
     } else {
@@ -589,6 +795,7 @@ with {
 // Simple polyphonic DSP.
 static void test24(int argc, char* argv[])
 {
+    cout << "test24\n";
     interpreter_dsp_factory* factory = nullptr;
     string error_msg;
     
@@ -609,7 +816,7 @@ static void test24(int argc, char* argv[])
     }
     destroyLibContext();
     
-    // Use factory outside of the createLibContext/destroyLibContext scope
+    // The factory can be used outside of the createLibContext/destroyLibContext scope
     if (factory) {
         dsp* dsp = factory->createDSPInstance();
         assert(dsp);
@@ -647,11 +854,55 @@ static void test24(int argc, char* argv[])
     }
 }
 
+// Compile a complete DSP program to a box expression, then a list of signals, then to a source string
+// in several target languages
+static void test25()
+{
+    cout << "test25\n";
+    vector<const char*> lang = { "c", "cpp", "cmajor", "codebox", "csharp", "dlang", "fir", "interp", "jax", "jsfx", "julia", "rust", "wast" };
+    // Context has to be created/destroyed each time
+    for (const auto& it : lang) {
+        createLibContext();
+        {
+            int inputs = 0;
+            int outputs = 0;
+            string error_msg;
+        
+            // Create the oscillator
+            Box osc = DSPToBoxes("FaustDSP", "import(\"stdfaust.lib\"); process = os.osc(440);", 0, nullptr, &inputs, &outputs, error_msg);
+            if (!osc) {
+                cerr << error_msg;
+                destroyLibContext();
+                return;
+            }
+        
+            // Convert to signals
+            tvec signals = boxesToSignals(osc, error_msg);
+            if (signals.size() == 0) {
+                cerr << error_msg;
+                destroyLibContext();
+                return;
+            }
+        
+            // Compile signals to the target language
+            string source = createSourceFromSignals("FaustDSP", signals, it,  0, nullptr, error_msg);
+            if (source != "") {
+                cout << source;
+            } else {
+                cerr << error_msg;
+            }
+        }
+        destroyLibContext();
+    }
+}
+
+
 list<GUI*> GUI::fGuiList;
 ztimedmap GUI::gTimedZoneMap;
 
 int main(int argc, char* argv[])
 {
+    test0();
     test1();
     test2();
     test3();
@@ -661,9 +912,13 @@ int main(int argc, char* argv[])
     test7();
     equivalent1();
     equivalent2();
+    normalform();
+    intervals();
     test8();
     test9();
     test10();
+    test10bis();
+    test10ter();
     test11();
     test12();
     test13();
@@ -679,11 +934,17 @@ int main(int argc, char* argv[])
     // Test with audio, GUI and LLVM backend
     test22(argc, argv);
     
+    // Test with audio, GUI and LLVM backend and 2 factories/DSP
+    test22bis(argc, argv);
+    
     // Test with audio, GUI and Interp backend
     test23(argc, argv);
     
     // Test with audio, GUI, MIDI and Interp backend
     test24(argc, argv);
+    
+    // Test 'DSPToBoxes/boxesToSignals/createSourceFromSignals' API
+    test25();
     
     return 0;
 }

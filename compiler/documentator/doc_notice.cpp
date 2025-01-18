@@ -4,16 +4,16 @@
  Copyright (C) 2003-2018 GRAME, Centre National de Creation Musicale
  ---------------------------------------------------------------------
  This program is free software; you can redistribute it and/or modify
- it under the terms of the GNU General Public License as published by
- the Free Software Foundation; either version 2 of the License, or
+ it under the terms of the GNU Lesser General Public License as published by
+ the Free Software Foundation; either version 2.1 of the License, or
  (at your option) any later version.
 
  This program is distributed in the hope that it will be useful,
  but WITHOUT ANY WARRANTY; without even the implied warranty of
  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
+ GNU Lesser General Public License for more details.
 
- You should have received a copy of the GNU General Public License
+ You should have received a copy of the GNU Lesser General Public License
  along with this program; if not, write to the Free Software
  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -31,6 +31,8 @@
 #include "doc_notice.hh"
 #include "enrobage.hh"
 #include "global.hh"
+
+using namespace std;
 
 static void initDocNoticeKeySet();
 static void initDocNoticeFlagMap();
@@ -60,20 +62,26 @@ void printDocNotice(const string& faustversion, ostream& docout)
 
         /* Presentations. */
         docout << "\t\\item " << gGlobal->gDocAutodocStringMap["autontctext"] << endl;
-        if (gGlobal->gDocNoticeFlagMap["faustapply"])
+        if (gGlobal->gDocNoticeFlagMap["faustapply"]) {
             docout << "\t\\item " << gGlobal->gDocNoticeStringMap["faustapply"] << endl;
-        if (gGlobal->gDocNoticeFlagMap["faustpresentation"])
+        }
+        if (gGlobal->gDocNoticeFlagMap["faustpresentation"]) {
             docout << "\t\\item " << gGlobal->gDocNoticeStringMap["faustpresentation"] << endl;
-        if (gGlobal->gDocNoticeFlagMap["causality"])
+        }
+        if (gGlobal->gDocNoticeFlagMap["causality"]) {
             docout << "\t\\item " << gGlobal->gDocNoticeStringMap["causality"] << endl;
-        if (gGlobal->gDocNoticeFlagMap["blockdiagrams"])
+        }
+        if (gGlobal->gDocNoticeFlagMap["blockdiagrams"]) {
             docout << "\t\\item " << gGlobal->gDocNoticeStringMap["blockdiagrams"] << endl;
+        }
 
         /* Naming conventions of variables and functions. */
-        if (gGlobal->gDocNoticeFlagMap["foreignfun"])
+        if (gGlobal->gDocNoticeFlagMap["foreignfun"]) {
             docout << "\t\\item " << gGlobal->gDocNoticeStringMap["foreignfun"] << endl;
-        if (gGlobal->gDocNoticeFlagMap["intcast"])
+        }
+        if (gGlobal->gDocNoticeFlagMap["intcast"]) {
             docout << "\t\\item " << gGlobal->gDocNoticeStringMap["intcast"] << endl;
+        }
 
         /* Integer arithmetic into a tabular environment. */
         if (gGlobal->gDocNoticeFlagMap["intplus"] || gGlobal->gDocNoticeFlagMap["intminus"] ||
@@ -91,27 +99,36 @@ void printDocNotice(const string& faustversion, ostream& docout)
             docout << "\t\t\\hline " << endl;
             docout << "\t\t" << gGlobal->gDocNoticeStringMap["optabtitle"] << endl;
             docout << "\t\t\\hline " << endl;
-            if (gGlobal->gDocNoticeFlagMap["intplus"])
+            if (gGlobal->gDocNoticeFlagMap["intplus"]) {
                 docout << "\t\t" << gGlobal->gDocNoticeStringMap["intplus"] << endl;
-            if (gGlobal->gDocNoticeFlagMap["intminus"])
+            }
+            if (gGlobal->gDocNoticeFlagMap["intminus"]) {
                 docout << "\t\t" << gGlobal->gDocNoticeStringMap["intminus"] << endl;
-            if (gGlobal->gDocNoticeFlagMap["intmult"])
+            }
+            if (gGlobal->gDocNoticeFlagMap["intmult"]) {
                 docout << "\t\t" << gGlobal->gDocNoticeStringMap["intmult"] << endl;
-            if (gGlobal->gDocNoticeFlagMap["intdiv"])
+            }
+            if (gGlobal->gDocNoticeFlagMap["intdiv"]) {
                 docout << "\t\t" << gGlobal->gDocNoticeStringMap["intdiv"] << endl;
-            if (gGlobal->gDocNoticeFlagMap["intand"])
+            }
+            if (gGlobal->gDocNoticeFlagMap["intand"]) {
                 docout << "\t\t" << gGlobal->gDocNoticeStringMap["intand"] << endl;
-            if (gGlobal->gDocNoticeFlagMap["intor"]) docout << "\t\t" << gGlobal->gDocNoticeStringMap["intor"] << endl;
-            if (gGlobal->gDocNoticeFlagMap["intxor"])
+            }
+            if (gGlobal->gDocNoticeFlagMap["intor"]) {
+                docout << "\t\t" << gGlobal->gDocNoticeStringMap["intor"] << endl;
+            }
+            if (gGlobal->gDocNoticeFlagMap["intxor"]) {
                 docout << "\t\t" << gGlobal->gDocNoticeStringMap["intxor"] << endl;
+            }
             docout << "\t\t\\hline " << endl;
             docout << "\t\\end{tabular} " << endl;
             docout << "\t\\end{center}" << endl;
             docout << "\t\t" << gGlobal->gDocNoticeStringMap["integerops"] << endl;
         }
 
-        if (gGlobal->gDocNoticeFlagMap["faustdocdir"])
+        if (gGlobal->gDocNoticeFlagMap["faustdocdir"]) {
             docout << "\t\\item " << gGlobal->gDocNoticeStringMap["faustdocdir"] << endl;
+        }
 
         docout << "\\end{itemize}" << endl << endl;
     }
@@ -167,7 +184,8 @@ static void initDocNoticeKeySet()
  */
 static void initDocNoticeFlagMap()
 {
-    for (set<string>::iterator it = gGlobal->gDocNoticeKeySet.begin(); it != gGlobal->gDocNoticeKeySet.end(); ++it) {
+    for (set<string>::iterator it = gGlobal->gDocNoticeKeySet.begin();
+         it != gGlobal->gDocNoticeKeySet.end(); ++it) {
         gGlobal->gDocNoticeFlagMap[*it] = false;
     }
     gGlobal->gDocNoticeFlagMap["faustpresentation"] = true;

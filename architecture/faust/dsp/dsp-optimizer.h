@@ -30,6 +30,7 @@ architecture section is not modified.
 #include <pwd.h>
 #include <unistd.h>
 #include <typeinfo>
+#include <tuple>
 
 #include "faust/dsp/llvm-dsp.h"
 #include "faust/dsp/dsp-bench.h"
@@ -58,7 +59,6 @@ class dsp_optimizer_real {
         int fCount;
         bool fTrace;
         bool fControl;
-        bool fNeedExp10;
         int fDownSampling;
         int fUpSampling;
         int fFilter;
@@ -68,9 +68,10 @@ class dsp_optimizer_real {
         std::string fTarget;
         std::string fError;
     
-        TOptionTable fOptionsTable;
+        TOptionTable fScalOptionsTable;
+        TOptionTable fVecOptionsTable;
     
-        std::pair<double, double> bench(int run)
+        std::tuple<double, double, double> bench(int run)
         {
             // First call with fCount = -1 will be used to estimate fCount by giving the wanted measure duration
             if (fCount == -1) {
@@ -78,33 +79,47 @@ class dsp_optimizer_real {
                 mes.measure();
                 // fCount is kept from the first duration measure
                 fCount = mes.getCount();
-                return std::make_pair(mes.getStats(), mes.getCPULoad());
+                std::pair<double, double> res = mes.getStats();
+                return std::make_tuple(res.first, res.second, mes.getCPULoad());
             } else {
                 measure_dsp_real<REAL> mes(fDSP, fBufferSize, fCount, fTrace, fControl, fDownSampling, fUpSampling, fFilter);
                 for (int i = 0; i < run; i++) {
                     mes.measure();
+                    std::pair<double, double> res = mes.getStats();
                     if (fTrace) {
-                        fprintf(stdout, "%f MBytes/sec (DSP CPU %% : %f at %d Hz)\n", mes.getStats(), (mes.getCPULoad() * 100), int(BENCH_SAMPLE_RATE));
+                        fprintf(stdout, "%f MBytes/sec, SD : %f%% (DSP CPU : %f%% at %d Hz)\n", res.first, res.second, (mes.getCPULoad() * 100), int(BENCH_SAMPLE_RATE));
                     }
-                    FAUSTBENCH_LOG<double>(mes.getStats());
+                    FAUSTBENCH_LOG<double>(res.first);
                 }
-                return std::make_pair(mes.getStats(), mes.getCPULoad());
+                std::pair<double, double> res = mes.getStats();
+                return std::make_tuple(res.first, res.second, mes.getCPULoad());
             }
         }
     
         void init()
         {
-            // Scalar mode
-            std::vector <std::string> t0;
-            t0.push_back("-scal");
-            fOptionsTable.push_back(t0);
-            
             // Scalar mode with exp10
             std::vector <std::string> t0_exp10;
             t0_exp10.push_back("-scal");
             t0_exp10.push_back("-exp10");
-            fOptionsTable.push_back(t0_exp10);
-          
+            fScalOptionsTable.push_back(t0_exp10);
+            
+            // Scalar mode with -mcd 0
+            std::vector <std::string> t0;
+            t0.push_back("-scal");
+            t0.push_back("-mcd");
+            t0.push_back("0");
+            fScalOptionsTable.push_back(t0);
+            
+            // Scalar mode with different -mcd
+            for (int size = 2; size <= fBufferSize; size *= 2) {
+                std::vector <std::string> t1;
+                t1.push_back("-scal");
+                t1.push_back("-mcd");
+                t1.push_back(std::to_string(size));
+                fScalOptionsTable.push_back(t1);
+            }
+            
             // vec -lv 0
             for (int size = 4; size <= fBufferSize; size *= 2) {
                 std::vector <std::string> t1;
@@ -113,7 +128,7 @@ class dsp_optimizer_real {
                 t1.push_back("0");
                 t1.push_back("-vs");
                 t1.push_back(std::to_string(size));
-                fOptionsTable.push_back(t1);
+                fVecOptionsTable.push_back(t1);
             }
             
             // vec -lv 0 -fun
@@ -125,7 +140,7 @@ class dsp_optimizer_real {
                 t1.push_back("0");
                 t1.push_back("-vs");
                 t1.push_back(std::to_string(size));
-                fOptionsTable.push_back(t1);
+                fVecOptionsTable.push_back(t1);
             }
         
             /*
@@ -138,7 +153,7 @@ class dsp_optimizer_real {
                 t1.push_back("-vs");
                 t1.push_back(std::to_string(size));
                 t1.push_back("-g");
-                fOptionsTable.push_back(t1);
+                fVecOptionsTable.push_back(t1);
             }
             
             // vec -lv 0 -dfs
@@ -150,7 +165,7 @@ class dsp_optimizer_real {
                 t1.push_back("-vs");
                 t1.push_back(std::to_string(size));
                 t1.push_back("-dfs");
-                fOptionsTable.push_back(t1);
+                fVecOptionsTable.push_back(t1);
             }
             */
             
@@ -162,7 +177,7 @@ class dsp_optimizer_real {
                 t1.push_back("1");
                 t1.push_back("-vs");
                 t1.push_back(std::to_string(size));
-                fOptionsTable.push_back(t1);
+                fVecOptionsTable.push_back(t1);
             }
              
             // vec -lv 1 -fun
@@ -174,7 +189,7 @@ class dsp_optimizer_real {
                 t1.push_back("1");
                 t1.push_back("-vs");
                 t1.push_back(std::to_string(size));
-                fOptionsTable.push_back(t1);
+                fVecOptionsTable.push_back(t1);
             }
             
             /*
@@ -187,7 +202,7 @@ class dsp_optimizer_real {
                 t1.push_back("-vs");
                 t1.push_back(std::to_string(size));
                 t1.push_back("-g");
-                fOptionsTable.push_back(t1);
+                fVecOptionsTable.push_back(t1);
             }
          
             // vec -lv 1 -dfs
@@ -199,7 +214,7 @@ class dsp_optimizer_real {
                 t1.push_back("-vs");
                 t1.push_back(std::to_string(size));
                 t1.push_back("-dfs");
-                fOptionsTable.push_back(t1);
+                fVecOptionsTable.push_back(t1);
             }
             
             // sch
@@ -208,9 +223,9 @@ class dsp_optimizer_real {
                  t1.push_back("-sch");
                  t1.push_back("-vs");
                  t1.push_back(std::to_string(size));
-                 fOptionsTable.push_back(t1);
-             }
-             */
+                 fVecOptionsTable.push_back(t1);
+            }
+            */
         }
     
         void printItem(const std::vector <std::string>& item)
@@ -230,7 +245,7 @@ class dsp_optimizer_real {
             return res_item;
         }
         
-        bool computeOne(const TOption& item, int run, std::pair<double, double>& res)
+        bool computeOne(const TOption& item, int run, std::tuple<double, double, double>& res)
         {
             int argc = 0;
             const char* argv[64];
@@ -268,24 +283,27 @@ class dsp_optimizer_real {
             return true;
         }
     
-        std::tuple<double, double, TOption> findOptimizedParametersAux(const TOptionTable& options)
+        std::tuple<double, double, double, TOption> findOptimizedParametersAux(const TOptionTable& options)
         {
-            std::vector<std::tuple<int, double, double> > table_res;
-            std::pair<double, double> res = {0., 0.};
+            std::vector<std::tuple<int, double, double, double> > table_res;
+            std::tuple<double, double, double> res = {0., 0., 0.};
             
             for (int i = 0; i < options.size(); i++) {
                 if (computeOne(addArgvItems(options[i], fArgc, fArgv), fRun, res)) {
-                    table_res.push_back(std::make_tuple(i, res.first, res.second));
+                    table_res.push_back(std::make_tuple(i, std::get<0>(res), std::get<1>(res), std::get<2>(res)));
                 } else {
                     fprintf(stderr, "computeOne error...\n");
                 }
             }
             
             sort(table_res.begin(), table_res.end(), compareFun);
-            return std::make_tuple(std::get<1>(table_res[0]), std::get<2>(table_res[0]), options[std::get<0>(table_res[0])]);
+            return std::make_tuple(std::get<1>(table_res[0]),
+                                   std::get<2>(table_res[0]),
+                                   std::get<3>(table_res[0]),
+                                   options[std::get<0>(table_res[0])]);
         }
 
-        static bool compareFun(std::tuple<int, double, double> i, std::tuple<int, double, double> j)
+        static bool compareFun(std::tuple<int, double, double, double> i, std::tuple<int, double, double, double> j)
         {
             return (std::get<1>(i) > std::get<1>(j));
         }
@@ -315,7 +333,6 @@ class dsp_optimizer_real {
             fCount = -1;
             fTrace = trace;
             fControl = control;
-            fNeedExp10 = false;
             fDownSampling = ds;
             fUpSampling = us;
             fFilter = filter;
@@ -323,18 +340,11 @@ class dsp_optimizer_real {
             init();
             
             if (fTrace) fprintf(stdout, "Estimate timing parameters\n");
-            std::pair<double, double> res1 = {0., 0.};
-            if (!computeOne(addArgvItems(fOptionsTable[0], fArgc, fArgv), 1, res1)) {
+            std::tuple<double, double, double> res1 = {0., 0., 0.};
+            if (!computeOne(addArgvItems(fScalOptionsTable[1], fArgc, fArgv), 1, res1)) {
                 fprintf(stderr, "computeOne error...\n");
                 return false;
             }
-            if (fTrace) fprintf(stdout, "Testing -exp10 need\n");
-            std::pair<double, double> res2 = {0., 0.};
-            if (!computeOne(addArgvItems(fOptionsTable[1], fArgc, fArgv), 1, res2)) {
-                fprintf(stderr, "computeOne error...\n");
-                return false;
-            }
-            fNeedExp10 = (std::get<0>(res2) > (std::get<0>(res1) * 1.05)); // If more than 5% faster
             return true;
         }
     
@@ -381,67 +391,84 @@ class dsp_optimizer_real {
         /**
          * Returns the best compilations parameters.
          *
-         * @return the best result (in Megabytes/seconds) and DSP CPU (in 0..1), and compilation parameters in a vector.
+         * @return the best result (in Megabytes/seconds), DSP CPU (in 0..1), and compilation parameters in a vector.
          */
-        std::tuple<double, double, TOption> findOptimizedParameters()
+        std::tuple<double, double, double, TOption> findOptimizedParameters()
         {
             if (fTrace) fprintf(stdout, "Discover best parameters option\n");
-            std::tuple<double, double, TOption> best1 = findOptimizedParametersAux(fOptionsTable);
-            
-            if (fTrace) fprintf(stdout, "Refined with -mcd\n");
-            TOptionTable options_table;
+            std::tuple<double, double, double, TOption> best_scal = findOptimizedParametersAux(fScalOptionsTable);
+            std::tuple<double, double, double, TOption> best_vec = findOptimizedParametersAux(fVecOptionsTable);
         
-            // Start from 0
-            TOption best2 = std::get<2>(best1);
-            best2.push_back("-mcd");
-            best2.push_back("0");
-            options_table.push_back(best2);
-            for (int size = 2; size <= 256; size *= 2) {
-                TOption best2 = std::get<2>(best1);
-                best2.push_back("-mcd");
-                best2.push_back(std::to_string(size));
-                options_table.push_back(best2);
+            TOption best_vec_option = std::get<3>(best_vec);
+            if (fTrace) fprintf(stdout, "Refined with -mcd\n");
+            best_vec_option.push_back("-mcd");
+            best_vec_option.push_back("0");
+            TOptionTable refined_vec_table;
+            refined_vec_table.push_back(best_vec_option);
+            for (int size = 2; size <= fBufferSize; size *= 2) {
+                best_vec_option = std::get<3>(best_vec);
+                best_vec_option.push_back("-mcd");
+                best_vec_option.push_back(std::to_string(size));
+                refined_vec_table.push_back(best_vec_option);
             }
+        
+            best_vec = findOptimizedParametersAux(refined_vec_table);
             
-            if (fNeedExp10) {
-                if (fTrace) fprintf(stdout, "Use -exp10\n");
-                TOption t0_exp10;
-                t0_exp10.push_back("-exp10");
-                options_table.push_back(t0_exp10);
+            // Compare best scalar and vector modes
+            std::tuple<double, double, double, TOption> best_res;
+            if (std::get<0>(best_scal) > std::get<0>(best_vec)) {
+                best_res = best_scal;
+            } else {
+                best_res = best_vec;
             }
-            
-            std::tuple<double, double, TOption> best3 = findOptimizedParametersAux(options_table);
            
-            if (std::get<2>(best3)[0] == "-vec") {
-                if (fTrace) fprintf(stdout, "Check with -g or -dfs\n");
-                // Current best
-                TOptionTable options_table1;
+            // Current best
+            TOptionTable options_table;
+            {
+                TOption best = std::get<3>(best_res);
+                options_table.push_back(best);
+            }
+        
+            if (std::get<3>(best_res)[0] == "-vec") {
+                if (fTrace) fprintf(stdout, "Check with -ct 0\n");
+                // Add -ct 0
                 {
-                    TOption best2 = std::get<2>(best3);
-                    options_table1.push_back(best2);
+                    TOption best = std::get<3>(best_res);
+                    best.push_back("-ct");
+                    best.push_back("0");
+                    options_table.push_back(best);
                 }
+                if (fTrace) fprintf(stdout, "Check with -g or -dfs\n");
                 // Add -g
                 {
-                    TOption best2 = std::get<2>(best3);
-                    best2.push_back("-g");
-                    options_table1.push_back(best2);
+                    TOption best = std::get<3>(best_res);
+                    best.push_back("-g");
+                    options_table.push_back(best);
                 }
                 // Add -dfs
                 {
-                    TOption best2 = std::get<2>(best3);
-                    best2.push_back("-dfs");
-                    options_table1.push_back(best2);
+                    TOption best = std::get<3>(best_res);
+                    best.push_back("-dfs");
+                    options_table.push_back(best);
                 }
                 // Add -g and -dfs
                 {
-                    TOption best2 = std::get<2>(best3);
-                    best2.push_back("-g");
-                    best2.push_back("-dfs");
-                    options_table1.push_back(best2);
+                    TOption best = std::get<3>(best_res);
+                    best.push_back("-g");
+                    best.push_back("-dfs");
+                    options_table.push_back(best);
                 }
-                return findOptimizedParametersAux(options_table1);
+                return findOptimizedParametersAux(options_table);
             } else {
-                return best3;
+                if (fTrace) fprintf(stdout, "Check with -ct 0\n");
+                // Add -ct 0
+                {
+                    TOption best = std::get<3>(best_res);
+                    best.push_back("-ct");
+                    best.push_back("0");
+                    options_table.push_back(best);
+                }
+                return findOptimizedParametersAux(options_table);
             }
         }
     

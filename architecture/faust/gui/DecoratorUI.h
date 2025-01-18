@@ -31,13 +31,17 @@ architecture section is not modified.
 //  Generic UI empty implementation
 //----------------------------------------------------------------
 
-class GenericUI : public UI
+class FAUST_API GenericUI : public UI
 {
     
     public:
         
         GenericUI() {}
         virtual ~GenericUI() {}
+
+#ifdef DAISY_NO_RTTI
+        virtual bool isSoundUI() const override { return true; }
+#endif
         
         // -- widget's layouts
         virtual void openTabBox(const char* label) {}
@@ -67,7 +71,7 @@ class GenericUI : public UI
 //  Generic UI decorator
 //----------------------------------------------------------------
 
-class DecoratorUI : public UI
+class FAUST_API DecoratorUI : public UI
 {
     
     protected:
@@ -109,7 +113,7 @@ class DecoratorUI : public UI
 };
 
 // Defined here to simplify header #include inclusion 
-class SoundUIInterface : public GenericUI {};
+class FAUST_API SoundUIInterface : public GenericUI {};
 
 #endif
 /**************************  END  DecoratorUI.h **************************/

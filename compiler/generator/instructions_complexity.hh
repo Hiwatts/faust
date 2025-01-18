@@ -4,16 +4,16 @@
     Copyright (C) 2003-2018 GRAME, Centre National de Creation Musicale
     ---------------------------------------------------------------------
     This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation; either version 2.1 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+    GNU Lesser General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
+    You should have received a copy of the GNU Lesser General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -21,8 +21,6 @@
 
 #ifndef _INSTRUCTIONS_COMPLEXITY_H
 #define _INSTRUCTIONS_COMPLEXITY_H
-
-using namespace std;
 
 #include <iostream>
 #include <list>
@@ -33,96 +31,81 @@ using namespace std;
 #include <vector>
 
 #include "exception.hh"
+#include "faust/gui/JSONUI.h"
 #include "instructions.hh"
+#include "typing_instructions.hh"
 
 class InstComplexityVisitor : public DispatchVisitor {
    private:
-    int fLoad;
-    int fStore;
-    int fBinop;
-    int fMathop;
-    int fNumbers;
-    int fDeclare;
-    int fCast;
-    int fSelect;
-    int fLoop;
-  
-    map<string, int> gFunctionSymbolTable;
-    map<string, int> gBinopSymbolTable;
+    InstComplexity fIComp;
 
    public:
     using DispatchVisitor::visit;
 
-    InstComplexityVisitor()
-        : fLoad(0),
-          fStore(0),
-          fBinop(0),
-          fMathop(0),
-          fNumbers(0),
-          fDeclare(0),
-          fCast(0),
-          fSelect(0),
-          fLoop(0)
-    {}
-    
+    InstComplexityVisitor() {}
+
     virtual ~InstComplexityVisitor() {}
 
     virtual void visit(Printable* inst) {}
 
     virtual void visit(DeclareVarInst* inst)
     {
-        fDeclare++;
+        fIComp.fDeclare++;
         DispatchVisitor::visit(inst);
     }
 
-    virtual void visit(LoadVarInst* inst) { fLoad++; }
+    virtual void visit(LoadVarInst* inst)
+    {
+        fIComp.fLoad++;
+        DispatchVisitor::visit(inst);
+    }
     virtual void visit(StoreVarInst* inst)
     {
-        fStore++;
+        fIComp.fStore++;
         DispatchVisitor::visit(inst);
     }
 
-    virtual void visit(FloatNumInst* inst) { fNumbers++; }
-    virtual void visit(Int32NumInst* inst) { fNumbers++; }
-    virtual void visit(BoolNumInst* inst) { fNumbers++; }
-    virtual void visit(DoubleNumInst* inst) { fNumbers++; }
+    virtual void visit(FloatNumInst* inst) { fIComp.fNumbers++; }
+    virtual void visit(Int32NumInst* inst) { fIComp.fNumbers++; }
+    virtual void visit(BoolNumInst* inst) { fIComp.fNumbers++; }
+    virtual void visit(DoubleNumInst* inst) { fIComp.fNumbers++; }
 
     virtual void visit(BinopInst* inst)
     {
-        fBinop++;
-        TypingVisitor typing1;
-        inst->fInst1->accept(&typing1);
-        TypingVisitor typing2;
-        inst->fInst2->accept(&typing2);
-        if (isRealType(typing1.fCurType) || isRealType(typing1.fCurType)) {
-            gBinopSymbolTable["Real(" + string(gBinOpTable[inst->fOpcode]->fName) + ")"]++;
+        fIComp.fBinop++;
+        Typed::VarType type1 = TypingVisitor::getType(inst->fInst1);
+        Typed::VarType type2 = TypingVisitor::getType(inst->fInst2);
+        if (isRealType(type1) || isRealType(type2)) {
+            fIComp.fBinopSymbolTable["Real(" + std::string(gBinOpTable[inst->fOpcode]->fName) +
+                                     ")"]++;
         } else {
-            gBinopSymbolTable["Int(" + string(gBinOpTable[inst->fOpcode]->fName) + ")"]++;
+            fIComp
+                .fBinopSymbolTable["Int(" + std::string(gBinOpTable[inst->fOpcode]->fName) + ")"]++;
         }
         DispatchVisitor::visit(inst);
     }
     virtual void visit(CastInst* inst)
     {
-        fCast++;
+        fIComp.fCast++;
         DispatchVisitor::visit(inst);
     }
     virtual void visit(Select2Inst* inst)
     {
-        fSelect++;
+        fIComp.fSelect++;
         DispatchVisitor::visit(inst);
     }
 
     // Needs a cost table for a set of standard functions?
     virtual void visit(FunCallInst* inst)
     {
-        gFunctionSymbolTable[inst->fName]++;
-        fMathop++;
+        fIComp.fFunctionSymbolTable[inst->fName]++;
+        fIComp.fMathop++;
         DispatchVisitor::visit(inst);
     }
 
     virtual void visit(IfInst* inst)
     {
-        fSelect++;
+        fIComp.fSelect++;
         inst->fCond->accept(this);
 
         // Max of the 2 branches
@@ -134,73 +117,45 @@ class InstComplexityVisitor : public DispatchVisitor {
 
         // Takes the max of both then/else branches
         if (then_branch.cost() > else_branch.cost()) {
-            fLoad += then_branch.fLoad;
-            fStore += then_branch.fStore;
-            fBinop += then_branch.fBinop;
-            fMathop += then_branch.fMathop;
-            fNumbers += then_branch.fNumbers;
-            fDeclare += then_branch.fDeclare;
-            fCast += then_branch.fCast;
-            fSelect += then_branch.fSelect;
-            fLoop += then_branch.fLoop;
+            fIComp = fIComp + then_branch.fIComp;
         } else {
-            fLoad += else_branch.fLoad;
-            fStore += else_branch.fStore;
-            fBinop += else_branch.fBinop;
-            fMathop += else_branch.fMathop;
-            fNumbers += else_branch.fNumbers;
-            fDeclare += else_branch.fDeclare;
-            fCast += else_branch.fCast;
-            fSelect += else_branch.fSelect;
-            fLoop += else_branch.fLoop;
+            fIComp = fIComp + else_branch.fIComp;
         }
     }
 
     virtual void visit(ForLoopInst* inst)
     {
-        fLoop++;
+        fIComp.fLoop++;
         DispatchVisitor::visit(inst);
     }
 
-    void dump(ostream* dst)
+    void dump(std::ostream* dst)
     {
         *dst << "Instructions complexity : ";
-        *dst << "Load = " << fLoad << " Store = " << fStore;
-        *dst << " Binop = " << fBinop;
-        if (fBinop > 0) {
+        *dst << "Load = " << fIComp.fLoad << " Store = " << fIComp.fStore;
+        *dst << " Binop = " << fIComp.fBinop;
+        if (fIComp.fBinop > 0) {
             *dst << " [ ";
-            for (const auto& it : gBinopSymbolTable) {
+            for (const auto& it : fIComp.fBinopSymbolTable) {
                 if (it.second > 0) {
                     *dst << "{ " << it.first << " = " << it.second << " } ";
                 }
             }
             *dst << "]";
         }
-        *dst << " Mathop = " << fMathop;
-        if (fMathop > 0) {
+        *dst << " Mathop = " << fIComp.fMathop;
+        if (fIComp.fMathop > 0) {
             *dst << " [ ";
-            for (const auto& it : gFunctionSymbolTable) {
+            for (const auto& it : fIComp.fFunctionSymbolTable) {
                 if (it.second > 0) {
                     *dst << "{ " << it.first << " = " << it.second << " } ";
                 }
             }
             *dst << "]";
         }
-        *dst << " Numbers = " << fNumbers << " Declare = " << fDeclare;
-        *dst << " Cast = " << fCast << " Select = " << fSelect << " Loop = " << fLoop << "\n";
-    }
-
-    void operator+(const InstComplexityVisitor& visitor)
-    {
-        fLoad += visitor.fLoad;
-        fStore += visitor.fStore;
-        fBinop += visitor.fBinop;
-        fMathop += visitor.fMathop;
-        fNumbers += visitor.fNumbers;
-        fDeclare += visitor.fDeclare;
-        fCast += visitor.fCast;
-        fSelect += visitor.fSelect;
-        fLoop += visitor.fLoop;
+        *dst << " Numbers = " << fIComp.fNumbers << " Declare = " << fIComp.fDeclare;
+        *dst << " Cast = " << fIComp.fCast << " Select = " << fIComp.fSelect
+             << " Loop = " << fIComp.fLoop << "\n";
     }
 
     int cost()
@@ -208,6 +163,8 @@ class InstComplexityVisitor : public DispatchVisitor {
         // A polynom based on measured values
         return 0;
     }
+
+    InstComplexity getInstComplexity() { return fIComp; }
 };
 
 #endif

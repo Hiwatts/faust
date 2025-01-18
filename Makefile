@@ -1,4 +1,4 @@
-version := 2.40.8
+version := 2.78.4
 
 system	?= $(shell uname -s)
 
@@ -91,7 +91,7 @@ remote : developer
 	$(MAKE) -C embedded/faustremote all
 
 debug :
-	$(MAKE) -C $(BUILDLOCATION) FAUSTDIR=faustdebug CMAKEOPT=-DCMAKE_BUILD_TYPE=Debug
+	$(MAKE) -C $(BUILDLOCATION) FAUSTDIR=faustdebug RELEASE_TYPE=Debug NONDETERMINISM_LINT=yes
 #	$(MAKE) -C compiler debug -f $(MAKEFILE) prefix=$(prefix)
 
 ioslib :
@@ -123,7 +123,8 @@ help :
 	@echo " 'libsall'       : builds the Faust compiler (without the LLVM backend) and includes all the static and dynamic libraries"
 	@echo
 	@echo " 'install'       : install the compiler, tools and the architecture files in $(prefix)/bin $(prefix)/share/faust $(prefix)/include/faust"
-	@echo " 'clean'         : remove all object files"
+	@echo " 'clean'         : remove all object files (but keep build configurations)"
+	@echo " 'distclean'     : clean everything by removing the build/faustdir folder"
 	@echo 
 	@echo "Other targets"
 	@echo " 'debug'         : similar to 'all' target but with debug info. Output is in $(BUILDLOCATION)/$(DEBUGFOLDER)"
@@ -173,6 +174,8 @@ clean :
 	$(MAKE) -C tools/sound2faust clean
 	$(MAKE) -C tools/benchmark clean
 
+distclean :
+	rm -rf build/faustdir
 
 doc: $(wildcard compiler/*.cpp) $(wildcard compiler/*/*.cpp) $(wildcard compiler/*/*.h) $(wildcard compiler/*/*.hh)
 	cd documentation/libfaust && doxygen
@@ -209,7 +212,7 @@ devinstall:
 
 # make a Faust distribution tarball
 dist = faust-$(version)
-submodules = libraries
+submodules = libraries tools/faust2ck
 dist :
 	rm -rf $(dist)
 # Make sure that the submodules are initialized.

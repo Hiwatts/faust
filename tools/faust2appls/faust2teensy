@@ -3,7 +3,7 @@
 #####################################################################
 #                                                                   #
 #          SmartKeyboard App Generator for iOS and Android          #
-#               (c) Romain Michon CCRMA and Grame, 2016             #
+#               (c) Romain Michon CCRMA and Grame, 2016-2023        #
 #                                                                   #
 #####################################################################
 
@@ -21,16 +21,22 @@ LIB="0"
 NVOICES=0
 MIDI=0
 
-echoHelp ()
+echoHelp()
 {
-    echo "FAUST2TEENSY HELP"
-    echo "faust2teensy can be used to fully program the Teensy microcontroller and to generate DSP objects compatible with the Teensy audio library. In both cases, we strongly recommend to use the Teensy 3.6 which hosts an FPU (i.e., the Teensy 3.2 doesn't have one). "
+    echo "faust2teensy [-lib] [-midi] [-nvoices <num>] [Faust options (-vec -vs 8...)] <file.dsp>"
     option
-    option -lib "generates a package containing an object compatible with the Teensy audio library."
+    option -lib "generates a package containing an object compatible with the Teensy audio library (see https://github.com/grame-cncm/faust/tree/master-dev/architecture/teensy)"
     option -midi
     option "-nvoices <num>"
     option "Faust options"
+    exit
 }
+
+if [ "$#" -eq 0 ]; then
+    echo 'Please, provide a Faust file to process !'
+    echo ''
+    echoHelp
+fi
 
 ###########################
 # Processing Arguments
@@ -42,7 +48,6 @@ do
 
     if [ $p = "-help" ] || [ $p = "-h" ]; then
         echoHelp
-        exit 0
     elif [ $p = "-nvoices" ]; then
         shift
         NVOICES=$1
@@ -59,11 +64,6 @@ do
 shift
 
 done
-
-if [ -z $FILE ]; then
-    echo "Please, provide a Faust file to process"
-    exit 1
-fi
 
 ###########################
 # Post Argument Processing

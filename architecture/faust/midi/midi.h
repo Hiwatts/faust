@@ -27,10 +27,14 @@ architecture section is not modified.
 
 #include <vector>
 #include <string>
+#include <string.h>
 #include <algorithm>
+#include <cstdint>
 #include <assert.h>
 
-class MapUI;
+#include "faust/export.h"
+
+class FAUST_API MapUI;
 
 /**
  * A timestamped short MIDI message used with SOUL.
@@ -46,7 +50,7 @@ struct MIDIMessage
 #pragma pack (pop)
 
 /**
- * For timestamped MIDI messages.
+ * For timestamped MIDI messages (in usec).
  */
 struct DatedMessage {
     
@@ -81,7 +85,7 @@ class midi {
         midi() {}
         virtual ~midi() {}
 
-        // Additional time-stamped API for MIDI input
+        // Additional timestamped API for MIDI input
         virtual MapUI* keyOn(double, int channel, int pitch, int velocity)
         {
             return keyOn(channel, pitch, velocity);
@@ -465,6 +469,8 @@ class midi_handler : public midi, public midi_interface {
         }
   
 };
+
+#define ucast(v) static_cast<unsigned char>(v)
 
 #endif // __midi__
 /**************************  END  midi.h **************************/

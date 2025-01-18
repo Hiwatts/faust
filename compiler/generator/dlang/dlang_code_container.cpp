@@ -4,16 +4,16 @@
     Copyright (C) 2003-2018 GRAME, Centre National de Creation Musicale
     ---------------------------------------------------------------------
     This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation; either version 2.1 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+    GNU Lesser General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
+    You should have received a copy of the GNU Lesser General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -34,23 +34,24 @@ dsp_factory_base* DLangCodeContainer::produceFactory()
 {
     return new text_dsp_factory_aux(
         fKlassName, "", "",
-        ((dynamic_cast<ostringstream*>(fOut)) ? dynamic_cast<ostringstream*>(fOut)->str() : ""), "");
+        ((dynamic_cast<ostringstream*>(fOut)) ? dynamic_cast<ostringstream*>(fOut)->str() : ""),
+        "");
 }
 
 CodeContainer* DLangCodeContainer::createScalarContainer(const string& name, int sub_container_type)
 {
-    return (gGlobal->gOneSample >= 0)
-        ? new DLangScalarOneSampleCodeContainer(name, "", 0, 1, fOut, sub_container_type)
-        : new DLangScalarCodeContainer(name, "", 0, 1, fOut, sub_container_type);
+    return (gGlobal->gOneSample)
+               ? new DLangScalarOneSampleCodeContainer(name, "", 0, 1, fOut, sub_container_type)
+               : new DLangScalarCodeContainer(name, "", 0, 1, fOut, sub_container_type);
 }
 
-CodeContainer* DLangCodeContainer::createContainer(const string& name, const string& super, int numInputs,
-                                                  int numOutputs, ostream* dst)
+CodeContainer* DLangCodeContainer::createContainer(const string& name, const string& super,
+                                                   int numInputs, int numOutputs, ostream* dst)
 {
     CodeContainer* container;
 
     if (gGlobal->gFloatSize == 3) {
-        throw faustexception("ERROR : quad format not supported for D\n");
+        throw faustexception("ERROR : -quad format not supported for D\n");
     }
     if (gGlobal->gOpenCLSwitch) {
         throw faustexception("ERROR : OpenCL not supported for D\n");
@@ -66,9 +67,10 @@ CodeContainer* DLangCodeContainer::createContainer(const string& name, const str
     } else if (gGlobal->gVectorSwitch) {
         container = new DLangVectorCodeContainer(name, super, numInputs, numOutputs, dst);
     } else {
-        container = (gGlobal->gOneSample >= 0)
-            ? new DLangScalarOneSampleCodeContainer(name, super, numInputs, numOutputs, dst, kInt)
-            : new DLangScalarCodeContainer(name, super, numInputs, numOutputs, dst, kInt);
+        container = (gGlobal->gOneSample) ? new DLangScalarOneSampleCodeContainer(
+                                                name, super, numInputs, numOutputs, dst, kInt)
+                                          : new DLangScalarCodeContainer(name, super, numInputs,
+                                                                         numOutputs, dst, kInt);
     }
 
     return container;
@@ -79,14 +81,15 @@ void DLangCodeContainer::produceMetadata(int tabs)
     tab(tabs, *fOut);
     *fOut << "void metadata(Meta* m) nothrow @nogc { ";
 
-    // We do not want to accumulate metadata from all hierachical levels, so the upper level only is kept
+    // We do not want to accumulate metadata from all hierachical levels, so the upper level only is
+    // kept
     for (const auto& i : gGlobal->gMetaDataSet) {
         if (i.first != tree("author")) {
             tab(tabs + 1, *fOut);
             *fOut << "m.declare(\"" << *(i.first) << "\", " << **(i.second.begin()) << ");";
         } else {
-            // But the "author" meta data is accumulated, the upper level becomes the main author and sub-levels become
-            // "contributor"
+            // But the "author" meta data is accumulated, the upper level becomes the main author
+            // and sub-levels become "contributor"
             for (set<Tree>::iterator j = i.second.begin(); j != i.second.end(); j++) {
                 if (j == i.second.begin()) {
                     tab(tabs + 1, *fOut);
@@ -107,7 +110,6 @@ void DLangCodeContainer::produceMetadata(int tabs)
 
 void DLangCodeContainer::produceInit(int tabs)
 {
-
     tab(tabs, *fOut);
     *fOut << "void initialize(int sample_rate) nothrow @nogc {";
     tab(tabs + 1, *fOut);
@@ -131,11 +133,13 @@ void DLangCodeContainer::produceInit(int tabs)
 
 void DLangCodeContainer::printHeader()
 {
-    if (gGlobal->gArchFile == "")
+    if (gGlobal->gArchFile == "") {
         printDRecipeComment(*fOut, fKlassName);
+    }
     CodeContainer::printHeader(*fOut);
-    if (gGlobal->gArchFile == "")
+    if (gGlobal->gArchFile == "") {
         printDModuleStmt(*fOut, fKlassName);
+    }
 }
 
 void DLangCodeContainer::printDRecipeComment(ostream& dst, const string& klassName)
@@ -174,7 +178,7 @@ void DLangCodeContainer::produceInternal()
 
     tab(n, *fOut);
     *fOut << "  private:";
-    
+
     tab(n + 1, *fOut);
     tab(n + 1, *fOut);
 
@@ -189,7 +193,7 @@ void DLangCodeContainer::produceInternal()
     tab(n + 1, *fOut);
 
     // fKlassName used in method naming for subclasses
-    produceInfoFunctions(n + 1, fKlassName, "dsp", true, false, &fCodeProducer);
+    produceInfoFunctions(n + 1, fKlassName, "dsp", true, FunTyped::kDefault, &fCodeProducer);
 
     // TODO
     // generateInstanceInitFun("instanceInit" + fKlassName, true, false)->accept(&fCodeProducer);
@@ -210,10 +214,12 @@ void DLangCodeContainer::produceInternal()
     tab(n + 1, *fOut);
     if (fSubContainerType == kInt) {
         tab(n + 1, *fOut);
-        *fOut << "void fill" << fKlassName << subst("(int $0, int[] " + fTableName + ") nothrow @nogc {", counter);
+        *fOut << "void fill" << fKlassName
+              << subst("(int $0, int[] " + fTableName + ") nothrow @nogc {", counter);
     } else {
         tab(n + 1, *fOut);
-        *fOut << "void fill" << fKlassName << subst("(int $0, $1[] " + fTableName + ") nothrow @nogc {", counter, ifloat());
+        *fOut << "void fill" << fKlassName
+              << subst("(int $0, $1[] " + fTableName + ") nothrow @nogc {", counter, ifloat());
     }
     tab(n + 2, *fOut);
     fCodeProducer.Tab(n + 2);
@@ -229,10 +235,11 @@ void DLangCodeContainer::produceInternal()
 
     tab(n, *fOut);
     *fOut << fKlassName << "* "
-            << "new" << fKlassName << "() nothrow @nogc {"
-            << " return assumeNothrowNoGC(&mallocNew!(" << fKlassName << "))(); }";
+          << "new" << fKlassName << "() nothrow @nogc {"
+          << " return assumeNothrowNoGC(&mallocNew!(" << fKlassName << "))(); }";
     tab(n, *fOut);
-    *fOut << "void delete" << fKlassName << "(" << fKlassName << "* dsp) nothrow @nogc { destroyFree(dsp); }";
+    *fOut << "void delete" << fKlassName << "(" << fKlassName
+          << "* dsp) nothrow @nogc { destroyFree(dsp); }";
 
     tab(n, *fOut);
 }
@@ -241,8 +248,9 @@ string DLangCodeContainer::dModuleName(const string& klassName)
 {
     string moduleName = klassName;
     transform(moduleName.begin(), moduleName.end(), moduleName.begin(), ::tolower);
-    if (gGlobal->gNameSpace != "")
-        moduleName = gGlobal->gNameSpace + "." + moduleName;
+    if (gGlobal->gNamespace != "") {
+        moduleName = gGlobal->gNamespace + "." + moduleName;
+    }
     return moduleName;
 }
 
@@ -259,7 +267,7 @@ void DLangCodeContainer::produceClass()
     generateSubContainers();
 
     *fOut << "alias FAUSTCLASS = " << fKlassName << ";" << endl;
-  
+
     // Global declarations
     fCodeProducer.Tab(n);
     generateGlobalDeclarations(&fCodeProducer);
@@ -328,7 +336,7 @@ void DLangCodeContainer::produceClass()
 
     tab(n + 1, *fOut);
     // No class name for main class
-    produceInfoFunctions(n + 1, "", "dsp", true, true, &fCodeProducer);  // Inits
+    produceInfoFunctions(n + 1, "", "dsp", true, FunTyped::kVirtual, &fCodeProducer);  // Inits
 
     tab(n + 1, *fOut);
     *fOut << "static void classInit(int sample_rate) nothrow @nogc {";
@@ -399,8 +407,9 @@ void DLangCodeContainer::produceClass()
 }
 
 // Scalar
-DLangScalarCodeContainer::DLangScalarCodeContainer(const string& name, const string& super, int numInputs, int numOutputs,
-                                               std::ostream* out, int sub_container_type)
+DLangScalarCodeContainer::DLangScalarCodeContainer(const string& name, const string& super,
+                                                   int numInputs, int numOutputs, std::ostream* out,
+                                                   int sub_container_type)
     : DLangCodeContainer(name, super, numInputs, numOutputs, out)
 {
     fSubContainerType = sub_container_type;
@@ -418,7 +427,8 @@ void DLangScalarCodeContainer::generateCompute(int n)
     // Generates declaration
     tab(n + 1, *fOut);
     tab(n + 1, *fOut);
-    *fOut << subst("void compute(int $0, $1*[] inputs, $1*[] outputs) nothrow @nogc {", fFullCount, xfloat());
+    *fOut << subst("void compute(int $0, $1*[] inputs, $1*[] outputs) nothrow @nogc {", fFullCount,
+                   xfloat());
     tab(n + 2, *fOut);
     fCodeProducer.Tab(n + 2);
 
@@ -442,7 +452,9 @@ void DLangScalarOneSampleCodeContainer::generateCompute(int n)
     // Generates declaration
     tab(n + 1, *fOut);
     tab(n + 1, *fOut);
-    *fOut << subst("void compute($0[] inputs, $0[] outputs, int[] iControl, $0[] fControl) nothrow @nogc {", xfloat());
+    *fOut << subst(
+        "void compute($0[] inputs, $0[] outputs, int[] iControl, $0[] fControl) nothrow @nogc {",
+        xfloat());
     tab(n + 2, *fOut);
     fCodeProducer.Tab(n + 2);
 
@@ -473,15 +485,15 @@ void DLangScalarOneSampleCodeContainer::produceClass()
     generateSubContainers();
 
     *fOut << "alias FAUSTCLASS = " << fKlassName << ";" << endl;
-  
+
     // Global declarations
     fCodeProducer.Tab(n);
     generateGlobalDeclarations(&fCodeProducer);
 
     *fOut << "enum FAUST_INPUTS = " << fNumInputs << ";" << endl;
     *fOut << "enum FAUST_OUTPUTS = " << fNumOutputs << ";" << endl;
-    *fOut << "enum FAUST_INT_CONTROLS = " << fInt32ControlNum << ";" << endl;
-    *fOut << "enum FAUST_REAL_CONTROLS = " << fRealControlNum << ";" << endl;
+    *fOut << "enum FAUST_INT_CONTROLS = " << fIntControl->getSize() << ";" << endl;
+    *fOut << "enum FAUST_REAL_CONTROLS = " << fRealControl->getSize() << ";" << endl;
     fSuperKlassName = "one_sample_dsp";
 
     tab(n, *fOut);
@@ -548,7 +560,7 @@ void DLangScalarOneSampleCodeContainer::produceClass()
 
     tab(n + 1, *fOut);
     // No class name for main class
-    produceInfoFunctions(n + 1, "", "dsp", true, true, &fCodeProducer);  // Inits
+    produceInfoFunctions(n + 1, "", "dsp", true, FunTyped::kVirtual, &fCodeProducer);  // Inits
 
     tab(n + 1, *fOut);
     *fOut << "static void classInit(int sample_rate) nothrow @nogc {";
@@ -621,9 +633,9 @@ void DLangScalarOneSampleCodeContainer::produceClass()
     *fOut << "}" << endl;
 
     tab(n + 1, *fOut);
-    *fOut << "int getNumIntControls() nothrow @nogc { return " << fInt32ControlNum << "; }";
+    *fOut << "int getNumIntControls() nothrow @nogc { return " << fIntControl->getSize() << "; }";
     tab(n + 1, *fOut);
-    *fOut << "int getNumRealControls() nothrow @nogc { return " << fRealControlNum << "; }";
+    *fOut << "int getNumRealControls() nothrow @nogc { return " << fRealControl->getSize() << "; }";
 
     // Compute
     generateCompute(n);
@@ -633,9 +645,10 @@ void DLangScalarOneSampleCodeContainer::produceClass()
 }
 
 // Vector
-DLangVectorCodeContainer::DLangVectorCodeContainer(const string& name, const string& super, int numInputs, int numOutputs,
-                                               std::ostream* out)
-    : VectorCodeContainer(numInputs, numOutputs), DLangCodeContainer(name, super, numInputs, numOutputs, out)
+DLangVectorCodeContainer::DLangVectorCodeContainer(const string& name, const string& super,
+                                                   int numInputs, int numOutputs, std::ostream* out)
+    : VectorCodeContainer(numInputs, numOutputs),
+      DLangCodeContainer(name, super, numInputs, numOutputs, out)
 {
 }
 
@@ -648,7 +661,8 @@ void DLangVectorCodeContainer::generateCompute(int n)
 
     // Generates declaration
     tab(n + 1, *fOut);
-    *fOut << subst("void compute(int $0, $1*[] inputs, $1*[] outputs) nothrow @nogc {", fFullCount, xfloat());
+    *fOut << subst("void compute(int $0, $1*[] inputs, $1*[] outputs) nothrow @nogc {", fFullCount,
+                   xfloat());
     tab(n + 2, *fOut);
     fCodeProducer.Tab(n + 2);
 

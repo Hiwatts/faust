@@ -4,16 +4,16 @@
  Copyright (C) 2003-2018 GRAME, Centre National de Creation Musicale
  ---------------------------------------------------------------------
  This program is free software; you can redistribute it and/or modify
- it under the terms of the GNU General Public License as published by
- the Free Software Foundation; either version 2 of the License, or
+ it under the terms of the GNU Lesser General Public License as published by
+ the Free Software Foundation; either version 2.1 of the License, or
  (at your option) any later version.
 
  This program is distributed in the hope that it will be useful,
  but WITHOUT ANY WARRANTY; without even the implied warranty of
  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
+ GNU Lesser General Public License for more details.
 
- You should have received a copy of the GNU General Public License
+ You should have received a copy of the GNU Lesser General Public License
  along with this program; if not, write to the Free Software
  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -26,6 +26,8 @@
 #include "global.hh"
 #include "names.hh"
 #include "ppbox.hh"
+
+using namespace std;
 
 //----------------------- New environment management --------------------------
 //
@@ -56,7 +58,6 @@ static Tree pushNewLayer(Tree lenv)
  * @param lenv the old environment
  * @return the new environment
  */
-
 Tree pushEnvBarrier(Tree lenv)
 {
     return tree(gGlobal->BARRIER, lenv);
@@ -87,7 +88,8 @@ static void addLayerDef(Tree id, Tree def, Tree lenv)
     Tree olddef = nullptr;
     if (getProperty(lenv, id, olddef)) {
         if (def == olddef) {
-            // evalwarning(getDefFileProp(id), getDefLineProp(id), "equivalent re-definitions of", id);
+            // evalwarning(getDefFileProp(id), getDefLineProp(id), "equivalent re-definitions of",
+            // id);
         } else {
             stringstream error;
             error << getDefFileProp(id) << ':' << getDefLineProp(id)
@@ -130,7 +132,9 @@ Tree pushMultiClosureDefs(Tree ldefs, Tree visited, Tree lenv)
         Tree         cl  = closure(tl(def), gGlobal->nil, visited, lenv2);
         stringstream s;
         s << boxpp(id);
-        if (!isBoxCase(rhs)) setDefNameProperty(cl, s.str());
+        if (!isBoxCase(rhs)) {
+            setDefNameProperty(cl, s.str());
+        }
         addLayerDef(id, cl, lenv2);
         ldefs = tl(ldefs);
     }
@@ -163,7 +167,7 @@ bool searchIdDef(Tree id, Tree& def, Tree lenv)
  */
 static void updateClosures(vector<Tree>& clos, Tree oldEnv, Tree newEnv)
 {
-    for (unsigned int i = 0; i < clos.size(); i++) {
+    for (size_t i = 0; i < clos.size(); i++) {
         Tree exp, genv, visited, lenv;
         if (isClosure(clos[i], exp, genv, visited, lenv)) {
             if (lenv == oldEnv) {
@@ -186,12 +190,13 @@ Tree copyEnvReplaceDefs(Tree anEnv, Tree ldefs, Tree visited, Tree curEnv)
     vector<Tree> ids, clos;
     Tree         copyEnv;
 
-    anEnv->exportProperties(ids, clos);        // get the definitions of the environment
+    anEnv->exportProperties(ids, clos);  // get the definitions of the environment
     faustassert(anEnv->arity() > 0);
     copyEnv = pushNewLayer(anEnv->branch(0));  // create new environment with same stack
     updateClosures(clos, anEnv, copyEnv);      // update the closures replacing oldEnv with newEnv
 
-    for (unsigned int i = 0; i < clos.size(); i++) {  // transfers the updated definitions to the new environment
+    for (unsigned int i = 0; i < clos.size();
+         i++) {  // transfers the updated definitions to the new environment
         setProperty(copyEnv, ids[i], clos[i]);
     }
 
@@ -202,7 +207,9 @@ Tree copyEnvReplaceDefs(Tree anEnv, Tree ldefs, Tree visited, Tree curEnv)
         Tree         cl  = closure(rhs, gGlobal->nil, visited, curEnv);
         stringstream s;
         s << boxpp(id);
-        if (!isBoxCase(rhs)) setDefNameProperty(cl, s.str());
+        if (!isBoxCase(rhs)) {
+            setDefNameProperty(cl, s.str());
+        }
         setProperty(copyEnv, id, cl);
         ldefs = tl(ldefs);
     }

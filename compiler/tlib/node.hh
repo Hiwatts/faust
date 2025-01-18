@@ -4,16 +4,16 @@
     Copyright (C) 2003-2018 GRAME, Centre National de Creation Musicale
     ---------------------------------------------------------------------
     This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation; either version 2.1 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+    GNU Lesser General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
+    You should have received a copy of the GNU Lesser General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -28,19 +28,19 @@
  *
  * <b>API:</b>
  *
- * 	Node(symbol("abcd")); 	: node with symbol content
- * 	Node(10);				: node with int content
- * 	Node(3.14159);			: node with double content
+ * Node(symbol("abcd")); : node with symbol content
+ * Node(10);             : node with int content
+ * Node(3.14159);        : node with double content
  *
- * 	n->type();				: kIntNode or kDoubleNode or kSymNode
+ * n->type();            : kIntNode or kDoubleNode or kSymNode
  *
- * 	n->getInt();			: int content of n
- * 	n->getDouble();			: double content of n
- * 	n->getSym();			: symbol content of n
+ * n->getInt();          : int content of n
+ * n->getDouble();       : double content of n
+ * n->getSym();          : symbol content of n
  *
- * 	if (isInt(n, &i))	... : int i = int content of n
- * 	if (isDouble(n, &f))	... : double f = double content of n
- * 	if (isSym(n, &s))	... : Sym s = Sym content of n
+ * if (isInt(n, &i))     : int i = int content of n
+ * if (isDouble(n, &f))  : double f = double content of n
+ * if (isSym(n, &s))     : Sym s = Sym content of n
  *
  */
 
@@ -57,12 +57,10 @@
 #include "garbageable.hh"
 #include "symbol.hh"
 
-using namespace std;
-
 /**
  * Tags used to define the type of a Node
  */
-enum { kIntNode, kDoubleNode, kSymNode, kPointerNode };
+enum NodeType { kIntNode, kInt64Node, kDoubleNode, kSymNode, kPointerNode };
 
 /**
  * Class Node = (type x (int + double + Sym + void*))
@@ -87,12 +85,13 @@ class Node : public virtual Garbageable {
         fData.i = x;
     }
     Node(double x) : fType(kDoubleNode) { fData.f = x; }
+    Node(int64_t x) : fType(kInt64Node) { fData.v = x; }
     Node(const char* name) : fType(kSymNode)
     {
         fData.f = 0;
         fData.s = symbol(name);
     }
-    Node(const string& name) : fType(kSymNode)
+    Node(const std::string& name) : fType(kSymNode)
     {
         fData.f = 0;
         fData.s = symbol(name);
@@ -115,20 +114,27 @@ class Node : public virtual Garbageable {
     // accessors
     int type() const { return fType; }
 
-    int    getInt() const { return fData.i; }
-    double getDouble() const { return fData.f; }
-    Sym    getSym() const { return fData.s; }
-    void*  getPointer() const { return fData.p; }
+    int     getInt() const { return fData.i; }
+    int64_t getInt64() const { return fData.v; }
+    double  getDouble() const { return fData.f; }
+    Sym     getSym() const { return fData.s; }
+    void*   getPointer() const { return fData.p; }
 
     // conversions and promotion for numbers
-    operator int() const { return (fType == kIntNode) ? fData.i : (fType == kDoubleNode) ? int(fData.f) : 0; }
-    operator double() const { return (fType == kIntNode) ? double(fData.i) : (fType == kDoubleNode) ? fData.f : 0.0; }
+    operator int() const
+    {
+        return (fType == kIntNode) ? fData.i : (fType == kDoubleNode) ? int(fData.f) : 0;
+    }
+    operator double() const
+    {
+        return (fType == kIntNode) ? double(fData.i) : (fType == kDoubleNode) ? fData.f : 0.0;
+    }
 
-    ostream& print(ostream& fout) const;  ///< print a node on a stream
+    std::ostream& print(std::ostream& fout) const;  ///< print a node on a stream
 };
 
 // printing
-inline ostream& operator<<(ostream& s, const Node& n)
+inline std::ostream& operator<<(std::ostream& s, const Node& n)
 {
     return n.print(s);
 }
@@ -137,7 +143,7 @@ inline ostream& operator<<(ostream& s, const Node& n)
 // Predicates and pattern matching
 //-------------------------------------------------------------------------
 
-// integers
+// integers 32 bits
 inline bool isInt(const Node& n)
 {
     return (n.type() == kIntNode);
@@ -147,6 +153,22 @@ inline bool isInt(const Node& n, int* x)
 {
     if (n.type() == kIntNode) {
         *x = n.getInt();
+        return true;
+    } else {
+        return false;
+    }
+}
+
+// integer 64 bits: incomplete implementation but enough to be used in FTZ = 2 mode
+inline bool isInt64(const Node& n)
+{
+    return (n.type() == kInt64Node);
+}
+
+inline bool isInt64(const Node& n, int64_t* x)
+{
+    if (n.type() == kInt64Node) {
+        *x = n.getInt64();
         return true;
     } else {
         return false;
@@ -171,27 +193,38 @@ inline bool isDouble(const Node& n, double* x)
 
 inline bool isZero(const Node& n)
 {
-    return ((n.type() == kDoubleNode) && (n.getDouble() == 0.0)) || ((n.type() == kIntNode) && (n.getInt() == 0));
+    return ((n.type() == kDoubleNode) && (n.getDouble() == 0.0)) ||
+           ((n.type() == kIntNode) && (n.getInt() == 0));
 }
 
 inline bool isGEZero(const Node& n)
 {
-    return ((n.type() == kDoubleNode) && (n.getDouble() >= 0.0)) || ((n.type() == kIntNode) && (n.getInt() >= 0));
+    return ((n.type() == kDoubleNode) && (n.getDouble() >= 0.0)) ||
+           ((n.type() == kIntNode) && (n.getInt() >= 0));
 }
 
 inline bool isGTZero(const Node& n)
 {
-    return ((n.type() == kDoubleNode) && (n.getDouble() > 0.0)) || ((n.type() == kIntNode) && (n.getInt() > 0));
+    return ((n.type() == kDoubleNode) && (n.getDouble() > 0.0)) ||
+           ((n.type() == kIntNode) && (n.getInt() > 0));
 }
 
 inline bool isOne(const Node& n)
 {
-    return ((n.type() == kDoubleNode) && (n.getDouble() == 1.0)) || ((n.type() == kIntNode) && (n.getInt() == 1));
+    return ((n.type() == kDoubleNode) && (n.getDouble() == 1.0)) ||
+           ((n.type() == kIntNode) && (n.getInt() == 1));
 }
 
 inline bool isMinusOne(const Node& n)
 {
-    return ((n.type() == kDoubleNode) && (n.getDouble() == -1.0)) || ((n.type() == kIntNode) && (n.getInt() == -1));
+    return ((n.type() == kDoubleNode) && (n.getDouble() == -1.0)) ||
+           ((n.type() == kIntNode) && (n.getInt() == -1));
+}
+
+inline bool isNegative(const Node& n)
+{
+    return ((n.type() == kDoubleNode) && (n.getDouble() < 0.0)) ||
+           ((n.type() == kIntNode) && (n.getInt() < 0));
 }
 
 bool sameMagnitude(const Node& a, const Node& b);
@@ -258,16 +291,21 @@ inline const Node mulNode(const Node& x, const Node& y)
 inline const Node divExtendedNode(const Node& x, const Node& y)
 {
     if (isDouble(x) || isDouble(y)) {
-        if (double(y) == 0) goto raise_exception;
+        if (double(y) == 0) {
+            goto raise_exception;
+        }
         return Node(double(x) / double(y));
     } else {
-        if (int(y) == 0 || double(y) == 0) goto raise_exception;
-        return (double(int(x) / int(y)) == double(x) / double(y)) ? Node(int(x) / int(y)) : Node(double(x) / double(y));
+        if (int(y) == 0 || double(y) == 0) {
+            goto raise_exception;
+        }
+        return (double(int(x) / int(y)) == double(x) / double(y)) ? Node(int(x) / int(y))
+                                                                  : Node(double(x) / double(y));
     }
 
 raise_exception:
-    stringstream error;
-    error << "ERROR : division by 0 in " << x << " / " << y << endl;
+    std::stringstream error;
+    error << "ERROR : division by 0 in " << x << " / " << y << std::endl;
     throw faustexception(error.str());
     return {};
 }
@@ -275,8 +313,8 @@ raise_exception:
 inline const Node remNode(const Node& x, const Node& y)
 {
     if (int(y) == 0) {
-        stringstream error;
-        error << "ERROR : % by 0 in " << x << " % " << y << endl;
+        std::stringstream error;
+        error << "ERROR : % by 0 in " << x << " % " << y << std::endl;
         throw faustexception(error.str());
     }
     return Node(int(x) % int(y));

@@ -4,16 +4,16 @@
     Copyright (C) 2003-2018 GRAME, Centre National de Creation Musicale
     ---------------------------------------------------------------------
     This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation; either version 2.1 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+    GNU Lesser General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
+    You should have received a copy of the GNU Lesser General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -66,7 +66,7 @@ bool mterm::isNotZero() const
 }
 
 /**
- * true if mterm doesn't represent number 0
+ * true if mterm is strictly negative
  */
 bool mterm::isNegative() const
 {
@@ -86,7 +86,9 @@ ostream& mterm::print(ostream& dst) const
     // if (true) { dst << ppsig(fCoef); sep = " * "; }
     for (const auto& p : fFactors) {
         dst << sep << ppsig(p.first);
-        if (p.second != 1) dst << "**" << p.second;
+        if (p.second != 1) {
+            dst << "**" << p.second;
+        }
         sep = " * ";
     }
     return dst;
@@ -202,7 +204,7 @@ const mterm& mterm::operator/=(Tree t)
 }
 
 /**
- * replace the content with a copy of m
+ * Replace the content with a copy of m
  */
 const mterm& mterm::operator=(const mterm& m)
 {
@@ -290,7 +292,7 @@ const mterm& mterm::operator*=(const mterm& m)
 const mterm& mterm::operator/=(const mterm& m)
 {
     // cerr << "division en place : " << *this << " / " << m << endl;
-    if (m.fCoef == 0) {
+    if (m.fCoef == nullptr) {
         stringstream error;
         error << "ERROR : division by 0 in " << *this << " / " << m << endl;
         throw faustexception(error.str());
@@ -324,7 +326,7 @@ mterm mterm::operator/(const mterm& m) const
 }
 
 /**
- * return the "common quantity" of two numbers
+ * Return the "common quantity" of two numbers
  */
 static int common(int a, int b)
 {
@@ -338,13 +340,15 @@ static int common(int a, int b)
 }
 
 /**
- * return a mterm that is the greatest common divisor of two mterms
+ * Return a mterm that is the greatest common divisor of two mterms
  */
 mterm gcd(const mterm& m1, const mterm& m2)
 {
     // cerr << "GCD of " << m1 << " and " << m2 << endl;
 
-    Tree  c = (sameMagnitude(m1.fCoef, m2.fCoef)) ? m1.fCoef : tree(1);  // common coefficient (real gcd not needed)
+    Tree  c = (sameMagnitude(m1.fCoef, m2.fCoef))
+                  ? m1.fCoef
+                  : tree(1);  // common coefficient (real gcd not needed)
     mterm R(c);
     for (const auto& p1 : m1.fFactors) {
         Tree               t  = p1.first;
@@ -352,7 +356,7 @@ mterm gcd(const mterm& m1, const mterm& m2)
         if (p2 != m2.fFactors.end()) {
             int v1 = p1.second;
             int v2 = p2->second;
-            int c1  = common(v1, v2);
+            int c1 = common(v1, v2);
             if (c1 != 0) {
                 R.fFactors[t] = c1;
             }
@@ -391,18 +395,22 @@ bool mterm::hasDivisor(const mterm& n) const
 
         // check that f is also a factor of *this
         MP::const_iterator p2 = fFactors.find(f);
-        if (p2 == fFactors.end()) return false;
+        if (p2 == fFactors.end()) {
+            return false;
+        }
 
         // analyze quantities
         int u = p2->second;
-        if (!contains(u, v)) return false;
+        if (!contains(u, v)) {
+            return false;
+        }
     }
     // cerr << __LINE__ << ":" << __func__ << *this << " is divisible by " << n << endl;
     return true;
 }
 
 /**
- * produce the canonical tree correspoding to a mterm
+ * Produce the canonical tree corresponding to a mterm
  */
 
 /**
@@ -429,12 +437,13 @@ static void combineMulLeft(Tree& R, Tree A)
     } else if (A) {
         R = A;
     } else {
-        throw faustexception("ERROR in combineMulLeft\n");
+        cerr << "ERROR : combineMulLeft\n";
+        faustassert(false);
     }
 }
 
 /**
- * Combine R and A doing R = R*A or R = A
+ * Combine R and A doing R = R/A or R = A
  */
 static void combineDivLeft(Tree& R, Tree A)
 {
@@ -443,7 +452,8 @@ static void combineDivLeft(Tree& R, Tree A)
     } else if (A) {
         R = sigDiv(tree(1.0f), A);
     } else {
-        throw faustexception("ERROR in combineDivLeft\n");
+        cerr << "ERROR : combineDivLeft\n";
+        faustassert(false);
     }
 }
 
@@ -466,7 +476,7 @@ static void combineMulDiv(Tree& M, Tree& D, Tree f, int q)
 }
 
 /**
- * returns a normalized (canonical) tree expression of structure :
+ * Returns a normalized (canonical) tree expression of structure :
  * 		((v1/v2)*(c1/c2))*(s1/s2)
  */
 Tree mterm::signatureTree() const
@@ -475,7 +485,7 @@ Tree mterm::signatureTree() const
 }
 
 /**
- * returns a normalized (canonical) tree expression of structure :
+ * Returns a normalized (canonical) tree expression of structure :
  * 		((k*(v1/v2))*(c1/c2))*(s1/s2)
  * In signature mode the fCoef factor is ommited
  * In negativeMode the sign of the fCoef factor is inverted
@@ -488,7 +498,9 @@ Tree mterm::normalizedTree(bool signatureMode, bool negativeMode) const
 
     if (fFactors.empty() || isZero(fCoef)) {
         // it's a pure number
-        if (signatureMode) return tree(1);
+        if (signatureMode) {
+            return tree(1);
+        }
         if (negativeMode) {
             return minusNum(fCoef);
         } else {
@@ -511,11 +523,15 @@ Tree mterm::normalizedTree(bool signatureMode, bool negativeMode) const
             }
         }
 #if 1
-        if (A[0] != 0) cerr << "A[0] == " << *A[0] << endl;
-        if (B[0] != 0) cerr << "B[0] == " << *B[0] << endl;
+        if (A[0] != 0) {
+            cerr << "A[0] == " << *A[0] << endl;
+        }
+        if (B[0] != 0) {
+            cerr << "B[0] == " << *B[0] << endl;
+        }
         // in principle here zero order is empty because it corresponds to the numerical coef
-        faustassert(A[0] == 0);
-        faustassert(B[0] == 0);
+        faustassert(A[0] == nullptr);
+        faustassert(B[0] == nullptr);
 #endif
 
         // we only use a coeficient if it differs from 1 and if we are not in signature mode
@@ -548,7 +564,9 @@ Tree mterm::normalizedTree(bool signatureMode, bool negativeMode) const
                 combineDivLeft(RR, B[order]);
             }
         }
-        if (RR == 0) RR = tree(1);  // to check *******************
+        if (RR == nullptr) {
+            RR = tree(1);  // to check *******************
+        }
 
         faustassert(RR);
 #ifdef TRACE

@@ -4,16 +4,16 @@
     Copyright (C) 2003-2018 GRAME, Centre National de Creation Musicale
     ---------------------------------------------------------------------
     This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation; either version 2.1 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+    GNU Lesser General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
+    You should have received a copy of the GNU Lesser General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -53,6 +53,7 @@
 #include "files.hh"
 #include "global.hh"
 #include "names.hh"
+#include "occur.hh"
 #include "occurrences.hh"
 #include "ppbox.hh"
 #include "prim2.hh"
@@ -144,16 +145,16 @@ static schema* addSchemaOutputs(int outs, schema* x);
  */
 void drawSchema(Tree bd, const char* projname, const char* dev)
 {
-    gGlobal->gDevSuffix   = dev;
+    gGlobal->gDevSuffix   = dev;  // .svg or .ps used to choose output device
     gGlobal->gFoldingFlag = boxComplexity(bd) > gGlobal->gFoldThreshold;
 
-    mkchDir(projname);      // create a directory to store files
+    mkchDir(projname);  // create a directory to store files
 
-    scheduleDrawing(bd);    // schedule the initial drawing
+    scheduleDrawing(bd);  // schedule the initial drawing
 
     Tree t;
     while (pendingDrawing(t)) {
-        writeSchemaFile(t); // generate all the pending drawing
+        writeSchemaFile(t);  // generate all the pending drawing
     }
 
     choldDir();  // return to current directory
@@ -166,7 +167,7 @@ void drawSchema(Tree bd, const char* projname, const char* dev)
  ************************************************************************/
 
 // Collect the leaf numbers of tree l into vector v.
-// return true if l a number or a parallel tree of numbers
+// return true if l a number or a parallel tree of numbers.
 static bool isIntTree(Tree l, vector<int>& v)
 {
     int    n;
@@ -186,8 +187,8 @@ static bool isIntTree(Tree l, vector<int>& v)
 
     } else {
         stringstream error;
-        error << "ERROR in file " << __FILE__ << ':' << __LINE__ << ", not a valid list of numbers : " << boxpp(l)
-              << endl;
+        error << "ERROR : file " << __FILE__ << ':' << __LINE__
+              << ", not a valid list of numbers : " << boxpp(l) << endl;
         throw faustexception(error.str());
     }
 }
@@ -201,17 +202,20 @@ static void scheduleDrawing(Tree t)
 {
     if (gGlobal->gDrawnExp.find(t) == gGlobal->gDrawnExp.end()) {
         gGlobal->gDrawnExp.insert(t);
-        gGlobal->gBackLink.insert(make_pair(t, gGlobal->gSchemaFileName));  // remember the enclosing filename
+        gGlobal->gBackLink.insert(
+            make_pair(t, gGlobal->gSchemaFileName));  // remember the enclosing filename
         gGlobal->gPendingExp.push(t);
     }
 }
 
 /**
- * Retrieve next block diagram that must be drawn
+ * Retrieve next block diagram that must be drawn.
  */
 static bool pendingDrawing(Tree& t)
 {
-    if (gGlobal->gPendingExp.empty()) return false;
+    if (gGlobal->gPendingExp.empty()) {
+        return false;
+    }
     t = gGlobal->gPendingExp.top();
     gGlobal->gPendingExp.pop();
     return true;
@@ -222,7 +226,7 @@ static bool pendingDrawing(Tree& t)
 /**
  * Write a top level diagram. A top level diagram
  * is decorated with its definition name property
- * and is drawn in an individual file
+ * and is drawn in an individual file.
  */
 static void writeSchemaFile(Tree bd)
 {
@@ -232,7 +236,7 @@ static void writeSchemaFile(Tree bd)
 
     char temp[1024];
 
-    gGlobal->gOccurrences = new Occurrences(bd);
+    gGlobal->gOccurrences = new Occur(bd);
     getBoxType(bd, &ins, &outs);
 
     bool hasname = getDefNameProperty(bd, id);
@@ -251,7 +255,8 @@ static void writeSchemaFile(Tree bd)
 
     // generate the label of the schema
     string link = gGlobal->gBackLink[bd];
-    ts = makeTopSchema(addSchemaOutputs(outs, addSchemaInputs(ins, generateInsideSchema(bd))), 20, tree2str(id), link);
+    ts = makeTopSchema(addSchemaOutputs(outs, addSchemaInputs(ins, generateInsideSchema(bd))), 20,
+                       tree2str(id), link);
     // draw to the device defined by gDevSuffix
     if (strcmp(gGlobal->gDevSuffix, "svg") == 0) {
         SVGDev dev(res1.c_str(), ts->width(), ts->height());
@@ -304,23 +309,13 @@ static char* legalFileName(Tree t, int n, char* dst)
  * isInverter(t) returns true if t == '*(-1)'. This test is used
  * to simplify diagram by using a special symbol for inverters.
  */
-Tree gInverter[6];
-
 static bool isInverter(Tree t)
 {
-    // init gInverted table. For some reason doesn't work if done outside
-    if (gInverter[0] == 0) {
-        gInverter[0] = boxSeq(boxPar(boxWire(), boxInt(-1)), boxPrim2(sigMul));
-        gInverter[1] = boxSeq(boxPar(boxInt(-1), boxWire()), boxPrim2(sigMul));
-        gInverter[2] = boxSeq(boxPar(boxWire(), boxReal(-1.0)), boxPrim2(sigMul));
-        gInverter[3] = boxSeq(boxPar(boxReal(-1.0), boxWire()), boxPrim2(sigMul));
-        gInverter[4] = boxSeq(boxPar(boxInt(0), boxWire()), boxPrim2(sigSub));
-        gInverter[5] = boxSeq(boxPar(boxReal(0.0), boxWire()), boxPrim2(sigSub));
-    };
-
     // cerr << "isInverter " << t << '$' << boxpp(t) << endl;
     for (int i = 0; i < 6; i++) {
-        if (t == gInverter[i]) return true;
+        if (t == gGlobal->gInverter[i]) {
+            return true;
+        }
     }
     return false;
 }
@@ -354,7 +349,7 @@ static bool isPureRouting(Tree t)
 
 /**
  * Generate an appropriate schema according to
- * the type of block diagram. When folding is requiered,
+ * the type of block diagram. When folding is required,
  * instead of going down block-diagrams with a name,
  * schedule them for an individual file.
  */
@@ -393,7 +388,7 @@ static schema* generateDiagramSchema(Tree t)
 
 /**
  * Generate the inside schema of a block diagram
- * according to its type
+ * according to its type.
  */
 static schema* generateInsideSchema(Tree t)
 {
@@ -423,7 +418,7 @@ static schema* generateInsideSchema(Tree t)
         return makeBlockSchema(0, 1, s.str(), numcolor, "");
     } else if (isBoxReal(t, &r)) {
         stringstream s;
-        s << r;
+        s << boxpp(t);
         return makeBlockSchema(0, 1, s.str(), numcolor, "");
     } else if (isBoxWaveform(t)) {
         return makeBlockSchema(0, 2, "waveform{...}", normalcolor, "");
@@ -514,7 +509,8 @@ static schema* generateInsideSchema(Tree t)
         if (getDefNameProperty(t, id)) {
             return generateAbstractionSchema(generateInputSlotSchema(a), b);
         } else {
-            return makeDecorateSchema(generateAbstractionSchema(generateInputSlotSchema(a), b), 10, "Abstraction");
+            return makeDecorateSchema(generateAbstractionSchema(generateInputSlotSchema(a), b), 10,
+                                      "Abstraction");
         }
 
     } else if (isBoxEnvironment(t)) {
@@ -528,8 +524,8 @@ static schema* generateInsideSchema(Tree t)
             return makeRouteSchema(ins, outs, route);
         } else {
             stringstream error;
-            error << "ERROR in file " << __FILE__ << ':' << __LINE__ << ", invalid route expression : " << boxpp(t)
-                  << endl;
+            error << "ERROR : file " << __FILE__ << ':' << __LINE__
+                  << ", invalid route expression : " << boxpp(t) << endl;
             throw faustexception(error.str());
         }
     } else {
@@ -549,16 +545,16 @@ static string userInterfaceDescription(Tree box)
     Tree         t1, label, cur, min, max, step, chan;
     stringstream fout;
     // user interface
-    if (isBoxButton(box, label))
+    if (isBoxButton(box, label)) {
         fout << "button(" << extractName(label) << ')';
-    else if (isBoxCheckbox(box, label))
+    } else if (isBoxCheckbox(box, label)) {
         fout << "checkbox(" << extractName(label) << ')';
-    else if (isBoxVSlider(box, label, cur, min, max, step)) {
-        fout << "vslider(" << extractName(label) << ", " << boxpp(cur) << ", " << boxpp(min) << ", " << boxpp(max)
-             << ", " << boxpp(step) << ')';
+    } else if (isBoxVSlider(box, label, cur, min, max, step)) {
+        fout << "vslider(" << extractName(label) << ", " << boxpp(cur) << ", " << boxpp(min) << ", "
+             << boxpp(max) << ", " << boxpp(step) << ')';
     } else if (isBoxHSlider(box, label, cur, min, max, step)) {
-        fout << "hslider(" << extractName(label) << ", " << boxpp(cur) << ", " << boxpp(min) << ", " << boxpp(max)
-             << ", " << boxpp(step) << ')';
+        fout << "hslider(" << extractName(label) << ", " << boxpp(cur) << ", " << boxpp(min) << ", "
+             << boxpp(max) << ", " << boxpp(step) << ')';
     } else if (isBoxVGroup(box, label, t1)) {
         fout << "vgroup(" << extractName(label) << ", " << boxpp(t1, 0) << ')';
     } else if (isBoxHGroup(box, label, t1)) {
@@ -566,12 +562,14 @@ static string userInterfaceDescription(Tree box)
     } else if (isBoxTGroup(box, label, t1)) {
         fout << "tgroup(" << extractName(label) << ", " << boxpp(t1, 0) << ')';
     } else if (isBoxHBargraph(box, label, min, max)) {
-        fout << "hbargraph(" << extractName(label) << ", " << boxpp(min) << ", " << boxpp(max) << ')';
+        fout << "hbargraph(" << extractName(label) << ", " << boxpp(min) << ", " << boxpp(max)
+             << ')';
     } else if (isBoxVBargraph(box, label, min, max)) {
-        fout << "vbargraph(" << extractName(label) << ", " << boxpp(min) << ", " << boxpp(max) << ')';
+        fout << "vbargraph(" << extractName(label) << ", " << boxpp(min) << ", " << boxpp(max)
+             << ')';
     } else if (isBoxNumEntry(box, label, cur, min, max, step)) {
-        fout << "nentry(" << extractName(label) << ", " << boxpp(cur) << ", " << boxpp(min) << ", " << boxpp(max)
-             << ", " << boxpp(step) << ')';
+        fout << "nentry(" << extractName(label) << ", " << boxpp(cur) << ", " << boxpp(min) << ", "
+             << boxpp(max) << ", " << boxpp(step) << ')';
     } else if (isBoxSoundfile(box, label, chan)) {
         fout << "soundfile(" << extractName(label) << ", " << boxpp(chan) << ')';
     } else {
@@ -581,7 +579,7 @@ static string userInterfaceDescription(Tree box)
 }
 
 /**
- * Generate a 0->1 block schema for a user interface element
+ * Generate a 0->1 block schema for a user interface element.
  */
 static schema* generateUserInterfaceSchema(Tree t)
 {
@@ -589,7 +587,7 @@ static schema* generateUserInterfaceSchema(Tree t)
 }
 
 /**
- * Generate a 1->1 block schema for a user interface bargraph
+ * Generate a 1->1 block schema for a user interface bargraph.
  */
 static schema* generateBargraphSchema(Tree t)
 {
@@ -597,7 +595,7 @@ static schema* generateBargraphSchema(Tree t)
 }
 
 /**
- * Generate a 2->3+c block schema for soundfile("toto",c)
+ * Generate a 2->3+c block schema for soundfile("toto",c).
  */
 static schema* generateSoundfileSchema(Tree t)
 {
@@ -611,28 +609,34 @@ static schema* generateSoundfileSchema(Tree t)
 }
 
 /**
- * Generate a 1->0 block schema for an input slot
+ * Generate a 1->0 block schema for an input slot.
  */
 static schema* generateInputSlotSchema(Tree a)
 {
+    int i;
+    faustassert(isBoxSlot(a, &i));
     Tree id;
     faustassert(getDefNameProperty(a, id));
-    return makeBlockSchema(1, 0, tree2str(id), slotcolor, "");
+    string name = subst("[$0] $1", T(i), tree2str(id));
+    return makeBlockSchema(1, 0, name, slotcolor, "");
 }
 
 /**
- * Generate a 0->1 block schema for an output slot
+ * Generate a 0->1 block schema for an output slot.
  */
 static schema* generateOutputSlotSchema(Tree a)
 {
+    int i;
+    faustassert(isBoxSlot(a, &i));
     Tree id;
     faustassert(getDefNameProperty(a, id));
-    return makeBlockSchema(0, 1, tree2str(id), slotcolor, "");
+    string name = subst("[$0] $1", T(i), tree2str(id));
+    return makeBlockSchema(0, 1, name, slotcolor, "");
 }
 
 /**
  * Generate an abstraction schema by placing in sequence
- * the input slots and the body
+ * the input slots and the body.
  */
 static schema* generateAbstractionSchema(schema* x, Tree t)
 {

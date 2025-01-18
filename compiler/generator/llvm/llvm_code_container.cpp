@@ -4,16 +4,16 @@
     Copyright (C) 2003-2018 GRAME, Centre National de Creation Musicale
     ---------------------------------------------------------------------
     This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation; either version 2.1 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+    GNU Lesser General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
+    You should have received a copy of the GNU Lesser General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -31,12 +31,17 @@
 #include "llvm_dynamic_dsp_aux.hh"
 #include "llvm_instructions.hh"
 
+using namespace llvm;
+using namespace std;
+
 /*
  LLVM module description:
 
-- 'clone' method is implemented in the 'llvm_dsp' wrapping code
+ - several init and 'clone' methods are implemented in the 'llvm_dsp' wrapping code
+ - starting with LLVM 15, the LLVMInstVisitor::fVarTypes keeps association of address and types
 
- TODO: in -mem mode, classInit and classDestroy will have to be called once at factory init and destroy time
+ TODO: in -mem mode, classInit and classDestroy will have to be called once at factory init and
+ destroy time
 */
 
 // Helper functions
@@ -52,35 +57,39 @@ CodeContainer* LLVMCodeContainer::createScalarContainer(const string& name, int 
 LLVMCodeContainer::LLVMCodeContainer(const string& name, int numInputs, int numOutputs)
 {
     LLVMContext* context = new LLVMContext();
-    Module* module = new Module(gGlobal->printCompilationOptions1() + ", v" + string(FAUSTVERSION), *context);
-    
+    Module*      module =
+        new Module(gGlobal->printCompilationOptions1() + ", v" + string(FAUSTVERSION), *context);
+
     init(name, numInputs, numOutputs, module, context);
 }
 
-LLVMCodeContainer::LLVMCodeContainer(const string& name, int numInputs, int numOutputs, Module* module,
-                                     LLVMContext* context)
+LLVMCodeContainer::LLVMCodeContainer(const string& name, int numInputs, int numOutputs,
+                                     Module* module, LLVMContext* context)
 {
     init(name, numInputs, numOutputs, module, context);
- }
+}
 
 void LLVMCodeContainer::init(const string& name, int numInputs, int numOutputs, Module* module,
                              LLVMContext* context)
 {
     initialize(numInputs, numOutputs);
-    
+
     fKlassName = name;
     fModule    = module;
     fContext   = context;
     fBuilder   = new IRBuilder<>(*fContext);
-    
-    // Set "-fast-math"
-    FastMathFlags FMF;
+
+    if (!gGlobal->isOpt("FAUST_LLVM_NO_FM")) {
+        // Set "-fast-math"
+        FastMathFlags FMF;
 #if LLVM_VERSION_MAJOR >= 8
-    FMF.setFast();  // has replaced the following function
+        FMF.setFast();  // has replaced the following function
 #else
-    FMF.setUnsafeAlgebra();
+        FMF.setUnsafeAlgebra();
 #endif
-    fBuilder->setFastMathFlags(FMF);
+        fBuilder->setFastMathFlags(FMF);
+    }
+
     fModule->setTargetTriple(sys::getDefaultTargetTriple());
 }
 
@@ -91,11 +100,11 @@ LLVMCodeContainer::~LLVMCodeContainer()
 
 CodeContainer* LLVMCodeContainer::createContainer(const string& name, int numInputs, int numOutputs)
 {
-    gGlobal->gDSPStruct = true;
+    gGlobal->gDSPStruct = true;  // for -vec -fun mode
     CodeContainer* container;
 
     if (gGlobal->gFloatSize == 3) {
-        throw faustexception("ERROR : quad format not supported for LLVM\n");
+        throw faustexception("ERROR : -quad format not supported for LLVM\n");
     }
     if (gGlobal->gOpenCLSwitch) {
         throw faustexception("ERROR : OpenCL not supported for LLVM\n");
@@ -117,21 +126,9 @@ CodeContainer* LLVMCodeContainer::createContainer(const string& name, int numInp
     return container;
 }
 
-PointerType* LLVMCodeContainer::generateDspStruct()
-{
-    // Generate DSP structure
-    LLVMTypeHelper type_helper(fModule);
-    generateDeclarations(&fStructVisitor);
-
-    DeclareStructTypeInst* dec_type = fStructVisitor.getStructType(fKlassName);
-  
-    LLVMType dsp_type = type_helper.convertFIRType(dec_type->fType);
-    return PointerType::get(dsp_type, 0);
-}
-
 void LLVMCodeContainer::generateFunMaps()
 {
-    if (gGlobal->gFastMath) {
+    if (gGlobal->gFastMathLib != "") {
         generateFunMap("fabs", "fast_fabs", 1);
         generateFunMap("acos", "fast_acos", 1);
         generateFunMap("asin", "fast_asin", 1);
@@ -161,38 +158,43 @@ void LLVMCodeContainer::generateFunMaps()
     }
 }
 
-void LLVMCodeContainer::generateFunMap(const string& fun1_aux, const string& fun2_aux, int num_args, bool body)
+void LLVMCodeContainer::generateFunMap(const string& fun1_aux, const string& fun2_aux, int num_args,
+                                       bool body)
 {
     Typed::VarType type = itfloat();
-    string fun1 = fun1_aux + isuffix();
-    string fun2 = fun2_aux + isuffix();
+    string         fun1 = fun1_aux + isuffix();
+    string         fun2 = fun2_aux + isuffix();
 
     list<NamedTyped*> args1;
     list<ValueInst*>  args2;
     for (int i = 0; i < num_args; i++) {
         string var = gGlobal->getFreshID("val");
-        args1.push_back(InstBuilder::genNamedTyped(var, type));
-        args2.push_back(InstBuilder::genLoadFunArgsVar(var));
+        args1.push_back(IB::genNamedTyped(var, type));
+        args2.push_back(IB::genLoadFunArgsVar(var));
     }
 
     // Creates function
-    FunTyped* fun_type1 = InstBuilder::genFunTyped(args1, InstBuilder::genBasicTyped(type), FunTyped::kLocal);
-    FunTyped* fun_type2 = InstBuilder::genFunTyped(args1, InstBuilder::genBasicTyped(type), FunTyped::kDefault);
+    FunTyped* fun_type1 = IB::genFunTyped(args1, IB::genBasicTyped(type), FunTyped::kLocal);
+    FunTyped* fun_type2 = IB::genFunTyped(args1, IB::genBasicTyped(type), FunTyped::kDefault);
 
-    InstBuilder::genDeclareFunInst(fun2, fun_type2)->accept(fCodeProducer);
+    IB::genDeclareFunInst(fun2, fun_type2)->accept(fCodeProducer);
     if (body) {
-        BlockInst* block = InstBuilder::genBlockInst();
-        block->pushBackInst(InstBuilder::genRetInst(InstBuilder::genFunCallInst(fun2, args2)));
-        InstBuilder::genDeclareFunInst(fun1, fun_type1, block)->accept(fCodeProducer);
+        BlockInst* block = IB::genBlockInst();
+        block->pushBackInst(IB::genRetInst(IB::genFunCallInst(fun2, args2)));
+        IB::genDeclareFunInst(fun1, fun_type1, block)->accept(fCodeProducer);
     }
 }
 
 void LLVMCodeContainer::produceInternal()
 {
-    // Generate DSP structure
-    fCodeProducer = new LLVMInstVisitor(fModule, fBuilder, &fStructVisitor, generateDspStruct());
+    // Build DSP struct
+    generateDeclarations(&fStructVisitor);
+    DeclareStructTypeInst* dec_type = fStructVisitor.getStructType(fKlassName);
 
-    /// Memory methods
+    // Generate DSP structure
+    fCodeProducer = new LLVMInstVisitor(fModule, fBuilder, &fStructVisitor, dec_type);
+
+    // Memory methods
     generateCalloc()->accept(fCodeProducer);
     generateFree()->accept(fCodeProducer);
 
@@ -205,17 +207,27 @@ void LLVMCodeContainer::produceInternal()
     generateExtGlobalDeclarations(fCodeProducer);
     generateGlobalDeclarations(fCodeProducer);
 
-    generateInstanceInitFun("instanceInit" + fKlassName, "dsp", false, false)->accept(fCodeProducer);
+    generateInstanceInitFun("instanceInit" + fKlassName, "dsp", false, false)
+        ->accept(fCodeProducer);
     generateFillFun("fill" + fKlassName, "dsp", false, false)->accept(fCodeProducer);
 }
 
 dsp_factory_base* LLVMCodeContainer::produceFactory()
 {
-    // Generate gub containers
-    generateSubContainers();
+    if (gGlobal->gInlineTable) {
+        // Sub containers are merged in the main class
+        mergeSubContainers();
+    } else {
+        // Generate sub containers
+        generateSubContainers();
+    }
+
+    // Build DSP struct
+    generateDeclarations(&fStructVisitor);
+    DeclareStructTypeInst* dec_type = fStructVisitor.getStructType(fKlassName);
 
     // Generate DSP structure
-    fCodeProducer = new LLVMInstVisitor(fModule, fBuilder, &fStructVisitor, generateDspStruct());
+    fCodeProducer = new LLVMInstVisitor(fModule, fBuilder, &fStructVisitor, dec_type);
 
     generateFunMaps();
 
@@ -223,9 +235,14 @@ dsp_factory_base* LLVMCodeContainer::produceFactory()
     generateExtGlobalDeclarations(fCodeProducer);
     generateGlobalDeclarations(fCodeProducer);
 
-    generateStaticInitFun("classInit" + fKlassName, false)->accept(fCodeProducer);
+    if (gGlobal->gInlineTable) {
+        generateStaticInitFun("staticInit" + fKlassName, false)->accept(fCodeProducer);
+    } else {
+        generateStaticInitFun("classInit" + fKlassName, false)->accept(fCodeProducer);
+    }
     generateInstanceClear("instanceClear" + fKlassName, "dsp", false, false)->accept(fCodeProducer);
-    generateInstanceConstants("instanceConstants" + fKlassName, "dsp", false, false)->accept(fCodeProducer);
+    generateInstanceConstants("instanceConstants" + fKlassName, "dsp", false, false)
+        ->accept(fCodeProducer);
     generateAllocate("allocate" + fKlassName, "dsp", false, false)->accept(fCodeProducer);
     generateDestroy("destroy" + fKlassName, "dsp", false, false)->accept(fCodeProducer);
 
@@ -243,7 +260,7 @@ dsp_factory_base* LLVMCodeContainer::produceFactory()
     set<string> S;
     collectLibrary(S);
     string error;
-    
+
     if (S.size() > 0) {
         for (const auto& f : S) {
             string module_name = unquote(f);
@@ -251,7 +268,9 @@ dsp_factory_base* LLVMCodeContainer::produceFactory()
                 ModulePTR module = loadModule(module_name, fContext);
                 if (module) {
                     bool res = linkModules(fModule, MovePTR(module), error);
-                    if (!res) cerr << "WARNING : " << error << endl;
+                    if (!res) {
+                        cerr << "WARNING : " << error << endl;
+                    }
                 }
             }
         }
@@ -265,14 +284,48 @@ dsp_factory_base* LLVMCodeContainer::produceFactory()
     return new llvm_dynamic_dsp_factory_aux("", fModule, fContext, "", -1);
 }
 
+DeclareFunInst* LLVMCodeContainer::generateStaticInitFun(const string& name, bool isstatic)
+{
+    Names args;
+    if (gGlobal->gInlineTable) {
+        args.push_back(IB::genNamedTyped("dsp", Typed::kObj_ptr));
+    }
+    args.push_back(IB::genNamedTyped("sample_rate", Typed::kInt32));
+
+    BlockInst* block = IB::genBlockInst();
+
+    if (gGlobal->gInlineTable) {
+        BlockInst* inlined = inlineSubcontainersFunCalls(fStaticInitInstructions);
+        block->pushBackInst(inlined);
+    } else {
+        block->pushBackInst(fStaticInitInstructions);
+        block->pushBackInst(fPostStaticInitInstructions);
+    }
+
+    //  20/11/16 : added in generateInstanceInitFun, is this needed here ?
+    /*
+     init_block->pushBackInst(fResetUserInterfaceInstructions);
+     init_block->pushBackInst(fClearInstructions);
+     */
+
+    // Explicit return
+    block->pushBackInst(IB::genRetInst());
+
+    // Creates function
+    FunTyped* fun_type = IB::genFunTyped(args, IB::genVoidTyped(),
+                                         (isstatic) ? FunTyped::kStatic : FunTyped::kDefault);
+    return IB::genDeclareFunInst(name, fun_type, block);
+}
+
 // Scalar
 LLVMScalarCodeContainer::LLVMScalarCodeContainer(const string& name, int numInputs, int numOutputs)
     : LLVMCodeContainer(name, numInputs, numOutputs)
 {
 }
 
-LLVMScalarCodeContainer::LLVMScalarCodeContainer(const string& name, int numInputs, int numOutputs, Module* module,
-                                                 LLVMContext* context, int sub_container_type)
+LLVMScalarCodeContainer::LLVMScalarCodeContainer(const string& name, int numInputs, int numOutputs,
+                                                 Module* module, LLVMContext* context,
+                                                 int sub_container_type)
     : LLVMCodeContainer(name, numInputs, numOutputs, module, context)
 {
     fSubContainerType = sub_container_type;
@@ -289,8 +342,8 @@ void LLVMScalarCodeContainer::generateCompute()
 
 BlockInst* LLVMScalarCodeContainer::generateComputeAux()
 {
-    BlockInst* block = InstBuilder::genBlockInst();
-    // Control
+    BlockInst* block = IB::genBlockInst();
+    // Generates control
     block->pushBackInst(fComputeBlockInstructions);
     // Generates the DSP loop
     block->pushBackInst(fCurLoop->generateScalarLoop(fFullCount));
@@ -319,8 +372,8 @@ void LLVMVectorCodeContainer::generateCompute()
 
 BlockInst* LLVMVectorCodeContainer::generateComputeAux()
 {
-    BlockInst* block = InstBuilder::genBlockInst();
-    // Control
+    BlockInst* block = IB::genBlockInst();
+    // Generates control
     block->pushBackInst(fComputeBlockInstructions);
     // Generates the DSP loop
     block->pushBackInst(fDAGBlock);
@@ -401,7 +454,8 @@ void LLVMOpenMPCodeContainer::generateOMPDeclarations()
 }
 
 // Works stealing scheduler
-LLVMWorkStealingCodeContainer::LLVMWorkStealingCodeContainer(const string& name, int numInputs, int numOutputs)
+LLVMWorkStealingCodeContainer::LLVMWorkStealingCodeContainer(const string& name, int numInputs,
+                                                             int numOutputs)
     : WSSCodeContainer(numInputs, numOutputs, "dsp"), LLVMCodeContainer(name, numInputs, numOutputs)
 {
 }
@@ -427,8 +481,8 @@ void LLVMWorkStealingCodeContainer::generateCompute()
 
 BlockInst* LLVMWorkStealingCodeContainer::generateComputeAux()
 {
-    BlockInst* block = InstBuilder::genBlockInst();
-    // Control
+    BlockInst* block = IB::genBlockInst();
+    // Generates control
     block->pushBackInst(fComputeBlockInstructions);
     return block;
 }

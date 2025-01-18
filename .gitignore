@@ -2,6 +2,7 @@ dox/*
 build/xcode/*
 build/bin/*
 build/lib/*
+build/cmake-build-*
 *~
 compile.sh
 *.aux
@@ -16,7 +17,7 @@ compile.sh
 *.app
 .DS_Store
 *tmp*
-*dir*
+*dir
 windows/_output/
 windows/.vs/
 windows/*.*db
@@ -36,3 +37,9 @@ user.mk
 tests/impulse-tests/ir
 ### ESLint
 .eslintrc.json
+*-mdoc
+*-svg
+### Intellij IDEs
+.idea/
+### Pyenv
+.python-version

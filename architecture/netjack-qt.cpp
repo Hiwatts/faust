@@ -96,6 +96,7 @@ int main(int argc, char* argv[])
     char rcfilename[256];
     char* home = getenv("HOME");
     bool midi_sync = false;
+    bool midi = false;
     int nvoices = 0;
     bool control = true;
   
@@ -106,14 +107,14 @@ int main(int argc, char* argv[])
     int latency = lopt(argv, "--l", 2);
     
     mydsp* tmp_dsp = new mydsp();
-    MidiMeta::analyse(tmp_dsp, midi_sync, nvoices);
+    MidiMeta::analyse(tmp_dsp, midi, midi_sync, nvoices);
     delete tmp_dsp;
 
     snprintf(appname, 256, "%s", basename(argv[0]));
     snprintf(rcfilename, 256, "%s/.%src", home, appname);
     
     if (isopt(argv, "-h")) {
-        cout << "prog [--nvoices <val>] [--control <0/1>] [--group <0/1>]\n";
+        cout << argv[0] << " [--nvoices <val>] [--control <0/1>] [--group <0/1>]\n";
         exit(1);
     }
     

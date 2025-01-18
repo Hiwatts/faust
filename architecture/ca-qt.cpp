@@ -57,10 +57,6 @@
 
 #ifdef OSCCTRL
 #include "faust/gui/OSCUI.h"
-static void osc_compute_callback(void* arg)
-{
-    static_cast<OSCUI*>(arg)->endBundle();
-}
 #endif
 
 #ifdef HTTPCTRL
@@ -236,11 +232,17 @@ int main(int argc, char* argv[])
     char rcfilename[256];
     char* home = getenv("HOME");
     bool midi_sync = false;
+    bool midi = false;
     int nvoices = 0;
     bool control = true;
     
+    if (isopt(argv, "-help") || isopt(argv, "-h")) {
+        cout << argv[0] << " [--sample-rate <val>] [--buffer <val>] [--nvoices <val>] [--control <0/1>] [--group <0/1>] [--virtual-midi <0/1>]\n";
+        exit(1);
+    }
+    
     mydsp* tmp_dsp = new mydsp();
-    MidiMeta::analyse(tmp_dsp, midi_sync, nvoices);
+    MidiMeta::analyse(tmp_dsp, midi, midi_sync, nvoices);
     delete tmp_dsp;
     
 #ifdef IOS
@@ -250,13 +252,8 @@ int main(int argc, char* argv[])
     
     snprintf(name, 256, "%s", basename(argv[0]));
     snprintf(rcfilename, 256, "%s/.%src", home, name);
-    
-    if (isopt(argv, "-help") || isopt(argv, "-h")) {
-        cout << "prog [--frequency <val>] [--buffer <val>] [--nvoices <val>] [--control <0/1>] [--group <0/1>] [--virtual-midi <0/1>]\n";
-        exit(1);
-    }
-    
-    long srate = (long)lopt(argv, "--frequency", -1);
+     
+    long srate = (long)lopt(argv, "--sample-rate", -1);
     int fpb = lopt(argv, "--buffer", 512);
     bool is_virtual = lopt(argv, "--virtual-midi", false);
     
@@ -371,7 +368,6 @@ int main(int argc, char* argv[])
     OSCUI oscinterface(name, argc, argv);
     DSP->buildUserInterface(&oscinterface);
     cout << "OSC is on" << endl;
-    audio.addControlCallback(osc_compute_callback, &oscinterface);
 #endif
     
     if (!audio.start()) {

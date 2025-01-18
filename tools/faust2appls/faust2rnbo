@@ -1,0 +1,143 @@
+#! /bin/bash -e
+set -e
+
+#####################################################################
+#                                                                   #
+#               Compiles Faust programs to RNBO                     #
+#               (c) Grame, 20203                                    #
+#                                                                   #
+#####################################################################
+
+. faustpath
+. faustoptflags
+. usage.sh
+
+ARCHFILE=$FAUSTARCH/max-msp/rnbo.py
+MIDI=False
+SUB_PATCHER=False
+NVOICES=-1
+COMPILE=False
+EXPORT_PATH="/tmp/foo"
+EXPORT_FILENAME="foo.cpp"
+TEST=False
+POLY="POLY"
+EFFECT=""
+
+echoHelp() 
+{
+    usage faust2rnbo "[options] [Faust options] <file.dsp>"
+    echo  "Compiles Faust programs to RNBO patches"
+    option
+    options -midi
+    option "-nvoices <num>"
+    option "-effect <effect.dsp>"
+    option "-effect auto"
+    option -compile "to trigger C++ compilation at load time"
+    option -test "to generate special 'RB_XX' prefix for parameters (for testing)"
+    option -sp "to generate codebox subpatcher as a file.rnbopat file"
+    option "-cpp_path <path>"
+    option "-cpp_filename <filename>"
+    option "Faust options"
+    exit
+}
+
+if [ "$#" -eq 0 ]; then
+    echo 'Please, provide a Faust file to process !'
+    echo ''
+    echoHelp
+fi
+
+#-------------------------------------------------------------------
+# dispatch command arguments
+#-------------------------------------------------------------------
+
+OPTIONS=""
+
+while [ $1 ]
+do
+    p=$1
+
+    if [ $p = "-help" ] || [ $p = "-h" ]; then
+        echoHelp
+    fi
+
+    if [ $p = "-midi" ]; then
+        MIDI=True
+    elif [ $p = "-sp" ]; then
+        SUB_PATCHER=True
+    elif [ $p = "-nvoices" ]; then
+        shift
+        NVOICES=$1     
+    elif [ $p = "-effect" ]; then
+        POLY="POLY2"
+        shift
+        EFFECT=$1 
+    elif [ $p = "-compile" ]; then
+        COMPILE=True
+    elif [ $p = "-test" ]; then
+        TEST=True
+    elif [ $p = "-cpp_path" ]; then
+        shift
+        EXPORT_PATH=$1
+    elif [ $p = "-cpp_filename" ]; then
+        shift
+        EXPORT_FILENAME=$1
+    elif [ ${p:0:1} = "-" ]; then
+        OPTIONS="$OPTIONS $p"
+    elif [[ -f "$p" ]] && [ ${p: -4} == ".dsp" ]; then
+        FILES="$FILES $p"
+    else
+        OPTIONS="$OPTIONS $p"
+    fi
+
+shift
+
+done
+
+#-------------------------------------------------------------------
+# compile the *.dsp files
+#-------------------------------------------------------------------
+
+for f in $FILES; do
+
+    # compile the DSP to codebox using the architecture file
+    if [ "$TEST" = "True" ]; then
+        faust $OPTIONS "$f" -lang codebox-test -double -json -o "${f%.dsp}.codebox" || exit
+        # compile codebox and JSON file to maxpat
+        python3 $ARCHFILE --dsp-name "${f%.dsp}" --dsp-codebox "${f%.dsp}.codebox" --dsp-json "$f.json" --maxpat "${f%.dsp}.maxpat" --cpp-export $EXPORT_PATH --cpp-filename $EXPORT_FILENAME --compile $COMPILE --test $TEST --subpatcher $SUB_PATCHER
+    else
+        faust $OPTIONS "$f" -lang codebox -double -json -o "${f%.dsp}.codebox" || exit
+        if [ $POLY = "POLY2" ]; then
+            if [ $EFFECT = "auto" ]; then
+                cat > effect.dsp << EndOfCode
+                adapt(1,1) = _;
+                adapt(2,2) = _,_;
+                adapt(1,2) = _ <: _,_;
+                adapt(2,1) = _,_ :> _;
+                adaptor(F,G) = adapt(outputs(F),inputs(G));
+                process = adaptor(library("$f").process, library("$f").effect) : library("$f").effect;
+EndOfCode
+                faust $OPTIONS effect.dsp -lang codebox -double -json -o effect.codebox || exit
+                rm effect.dsp
+                # compile codebox and JSON files to maxpat
+                python3 $ARCHFILE --dsp-name "${f%.dsp}" --dsp-codebox "${f%.dsp}.codebox" --dsp-json "$f.json" --effect-codebox "effect.codebox" --effect-json "effect.dsp.json" --maxpat "${f%.dsp}.maxpat" --midi $MIDI --nvoices  $NVOICES --subpatcher $SUB_PATCHER
+            else
+                faust $OPTIONS "$EFFECT" -lang codebox -double -json -o "${EFFECT%.dsp}.codebox"  || exit
+                # compile codebox and JSON files to maxpat
+                python3 $ARCHFILE --dsp-name "${f%.dsp}" --dsp-codebox "${f%.dsp}.codebox" --dsp-json "$f.json" --effect-codebox "${EFFECT%.dsp}.codebox" --effect-json "$EFFECT.json" --maxpat "${f%.dsp}.maxpat" --midi $MIDI --nvoices $NVOICES --subpatcher $SUB_PATCHER
+            fi
+         else
+            # compile codebox and JSON file to maxpat
+            python3 $ARCHFILE --dsp-name "${f%.dsp}" --dsp-codebox "${f%.dsp}.codebox" --dsp-json "$f.json" --maxpat "${f%.dsp}.maxpat" --midi $MIDI --nvoices $NVOICES --subpatcher $SUB_PATCHER
+        fi
+    fi
+  
+    # remove temporary files
+    rm -f "${f%.dsp}.codebox" "$f.json"
+
+    # collect binary file name for FaustWorks
+    BINARIES="$BINARIES${f%.dsp}.maxpat;"
+done
+
+echo $BINARIES
+

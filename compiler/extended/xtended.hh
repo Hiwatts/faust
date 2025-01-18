@@ -4,16 +4,16 @@
     Copyright (C) 2003-2018 GRAME, Centre National de Creation Musicale
     ---------------------------------------------------------------------
     This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation; either version 2.1 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+    GNU Lesser General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
+    You should have received a copy of the GNU Lesser General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -22,22 +22,31 @@
 #ifndef __XTENDED__
 #define __XTENDED__
 
+#include <sstream>
 #include <vector>
 
 #include "garbageable.hh"
 #include "instructions.hh"
 #include "klass.hh"
 #include "lateq.hh"
-#include "sigtype.hh"
-#include "sigvisitor.hh"
-#include "tlib.hh"
 #include "ppsig.hh"
+#include "sigtype.hh"
+#include "tlib.hh"
 
 class CodeContainer;
 
+/*
+ Base class for math primitives:
+ - most of them have same args and result type, except 'pow' which can have different value and
+ exponent types
+ - max/min, abs/fabs have polymorphic kInt/kReal versions
+ - some of them have optimized versions for specific arguments (like 'pow') or with gMathApprox
+ (experimental)
+ */
+
 class xtended : public virtual Garbageable {
    private:
-    Symbol* fSymbol;  ///< the symbol the xtended is attached to
+    Sym fSymbol;  ///< the symbol the xtended is attached to
 
    public:
     xtended(const char* name) : fSymbol(::symbol(name)) { setUserData(fSymbol, (void*)this); }
@@ -46,6 +55,7 @@ class xtended : public virtual Garbageable {
     Sym         symbol() { return fSymbol; }
     const char* name() { return ::name(fSymbol); }
 
+    // Create the box
     Tree box()
     {
         Tree b = tree(fSymbol);
@@ -56,27 +66,36 @@ class xtended : public virtual Garbageable {
     // virtual method to be implemented by subclasses
     virtual unsigned int arity() = 0;
 
-    virtual ValueInst* generateCode(CodeContainer* container, list<ValueInst*>& args, ::Type result_type,
-                                    vector<::Type> const& types) = 0;
-
-    // SL : 28/09/17
+    // FIR backends
+    virtual ValueInst* generateCode(CodeContainer* container, Values& args, ::Type rtype,
+                                    ConstTypes types) = 0;
     // Old CPP backend
-    virtual string generateCode(Klass* klass, const vector<string>& args, const vector<Type>& types) = 0;
+    virtual std::string generateCode(Klass* klass, const std::vector<std::string>& args,
+                                     ConstTypes types) = 0;
 
-    virtual string generateLateq(Lateq* lateq, const vector<string>& args, const vector< ::Type>& types) = 0;
-    virtual int    infereSigOrder(const vector<int>& args)                                               = 0;
-    virtual ::Type infereSigType(const vector< ::Type>& args)                                            = 0;
-    virtual Tree   computeSigOutput(const vector<Tree>& args)                                            = 0;
-    virtual bool   needCache()                                                                           = 0;
+    virtual std::string generateLateq(Lateq* lateq, const std::vector<std::string>& args,
+                                      const std::vector< ::Type>& types) = 0;
+    virtual int         inferSigOrder(const std::vector<int>& args)      = 0;
+    virtual ::Type      inferSigType(ConstTypes args)                    = 0;
+    virtual Tree        computeSigOutput(const std::vector<Tree>& args)  = 0;
+    virtual bool        needCache()                                      = 0;
+
+    virtual double compute(const std::vector<Node>& args) { return -1.; };
+
+    // Compute the derivative of a primitive with respect to its arguments.
+    virtual Tree diff(const std::vector<Tree>& args)
+    {
+        // TODO: implement `diff` for all `xtended` implementations.
+        return nullptr;
+    }
 
     virtual bool isSpecialInfix()
     {
         return false;
     }  ///< generally false, but true for binary op # such that #(x) == _#x
 
-    void prepareTypeArgsResult(::Type result, const list<ValueInst*>& args, vector<::Type> const& types,
-                               Typed::VarType& result_type, vector<Typed::VarType>& arg_types,
-                               list<ValueInst*>& casted_args);
+    ValueInst* generateFun(CodeContainer* container, const std::string& fun_name,
+                           const Values& args, ::Type rtype, ConstTypes types);
 };
 
 // True if two floating point numbers are close enough to be considered identical.
@@ -86,22 +105,23 @@ inline bool comparable(double x, double y)
     return fabs(x - y) < 0.00001;
 }
 
+// Casting operations
 inline ValueInst* promote2real(int type, ValueInst* val)
 {
-    return (type == kReal) ? val : InstBuilder::genCastFloatInst(val);
+    return (type == kReal) ? val : IB::genCastRealInst(val);
 }
 inline ValueInst* promote2int(int type, ValueInst* val)
 {
-    return (type == kInt) ? val : InstBuilder::genCastInt32Inst(val);
+    return (type == kInt) ? val : IB::genCastInt32Inst(val);
 }
 
 inline ValueInst* cast2real(int type, ValueInst* val)
 {
-    return (type == kReal) ? InstBuilder::genCastFloatInst(val) : val;
+    return (type == kReal) ? IB::genCastRealInst(val) : val;
 }
 inline ValueInst* cast2int(int type, ValueInst* val)
 {
-    return (type == kInt) ? InstBuilder::genCastInt32Inst(val) : val;
+    return (type == kInt) ? IB::genCastInt32Inst(val) : val;
 }
 
 #endif

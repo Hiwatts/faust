@@ -53,7 +53,7 @@ class dummyaudio_real : public dummyaudio_base {
     
     private:
         
-        dsp* fDSP;
+        ::dsp* fDSP;
         
         int fSampleRate;
         int fBufferSize;
@@ -140,7 +140,7 @@ class dummyaudio_real : public dummyaudio_base {
             delete [] fOutChannel;
         }
         
-        virtual bool init(const char* name, dsp* dsp)
+        virtual bool init(const char* name, ::dsp* dsp)
         {
             fDSP = dsp;
             
@@ -210,12 +210,18 @@ class dummyaudio_real : public dummyaudio_base {
             fDSP->compute(fBufferSize, reinterpret_cast<FAUSTFLOAT**>(fInChannel), reinterpret_cast<FAUSTFLOAT**>(fOutChannel));
             if (fNumInputs > 0) {
                 for (int frame = 0; frame < fSample; frame++) {
-                    std::cout << std::fixed << std::setprecision(6) << "sample in " << fInChannel[0][frame] << std::endl;
+                    for (int chan = 0; chan < fNumInputs; chan++) {
+                        std::cout << std::fixed << std::setprecision(10) << "\t chan " << chan << " in " << fInChannel[0][frame];
+                    }
+                    std::cout << std::endl;
                 }
             }
             if (fNumOutputs > 0) {
                 for (int frame = 0; frame < fSample; frame++) {
-                    std::cout << std::fixed << std::setprecision(6) << "sample out " << fOutChannel[0][frame] << std::endl;
+                    for (int chan = 0; chan < fNumOutputs; chan++) {
+                        std::cout << std::fixed << std::setprecision(10) << "\t chan " << chan << " out " << fOutChannel[chan][frame];
+                    }
+                    std::cout << std::endl;
                 }
             }
         }
@@ -225,6 +231,8 @@ class dummyaudio_real : public dummyaudio_base {
         
         virtual int getNumInputs() { return fNumInputs; }
         virtual int getNumOutputs() { return fNumOutputs; }
+
+        REAL** getOutput() { return fOutChannel; }
     
 };
 

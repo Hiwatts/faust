@@ -4,16 +4,16 @@
     Copyright (C) 2003-2004 GRAME, Centre National de Creation Musicale
     ---------------------------------------------------------------------
     This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation; either version 2.1 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+    GNU Lesser General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
+    You should have received a copy of the GNU Lesser General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -29,10 +29,10 @@
  */
 
 class recSchema : public schema {
-    schema*       fSchema1;
-    schema*       fSchema2;
-    vector<point> fInputPoint;
-    vector<point> fOutputPoint;
+    schema*            fSchema1;
+    schema*            fSchema2;
+    std::vector<point> fInputPoint;
+    std::vector<point> fOutputPoint;
 
    public:
     friend schema* makeRecSchema(schema* s1, schema* s2);
@@ -47,7 +47,8 @@ class recSchema : public schema {
     recSchema(schema* s1, schema* s2, double width);
     void drawDelaySign(device& dev, double x, double y, double size);
 
-    void collectFeedback(collector& c, const point& src, const point& dst, double dx, const point& out);
+    void collectFeedback(collector& c, const point& src, const point& dst, double dx,
+                         const point& out);
     void collectFeedfront(collector& c, const point& src, const point& dst, double dx);
 };
 

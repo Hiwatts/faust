@@ -58,6 +58,11 @@ else
 	exit 1
 fi
 
+LIBFAUSTACTION=$ROOT/.github/workflows/libfaust.yml
+echo " updating $LIBFAUSTACTION"
+sed "s/FAUST_VERSION*: *..*/FAUST_VERSION: $VERSION/" $LIBFAUSTACTION > TMP$$
+mv -f TMP$$ $LIBFAUSTACTION
+
 MAKEF=$ROOT/Makefile
 echo " updating $MAKEF"
 sed "s/^version *:= *..*/version := $VERSION/" $MAKEF > TMP$$
@@ -78,9 +83,15 @@ echo " updating $MAKERELEASE"
 sed "s/^SET VERSION=[0-9].*/SET VERSION=$VERSION/" $MAKERELEASE > TMP$$
 mv TMP$$ $MAKERELEASE
 
-FAUST=$ROOT/compiler/generator/export.hh
+FAUST=$ROOT/architecture/faust/export.h
 echo " updating $FAUST"
 sed "s/FAUSTVERSION[ 	]\".*\"/FAUSTVERSION \"$VERSION\"/" $FAUST > TMP$$
+mv -f TMP$$ $FAUST
+sed "s/FAUSTMAJORVERSION[ 	].*/FAUSTMAJORVERSION $MAJOR/" $FAUST > TMP$$
+mv -f TMP$$ $FAUST
+sed "s/FAUSTMINORVERSION[ 	].*/FAUSTMINORVERSION $MINOR/" $FAUST > TMP$$
+mv -f TMP$$ $FAUST
+sed "s/FAUSTPATCHVERSION[ 	].*/FAUSTPATCHVERSION $PATCH/" $FAUST > TMP$$
 mv -f TMP$$ $FAUST
 
 FAUSTRC=$ROOT/windows/faust.rc
@@ -117,6 +128,11 @@ DOXYFILE3=$ROOT/documentation/libfaustremote/Doxyfile
 echo " updating $DOXYFILE3"
 sed "s/PROJECT_NUMBER         = [ 	]*[0-9].*/PROJECT_NUMBER         = $VERSION/" $DOXYFILE3 > TMP$$
 mv -f TMP$$ $DOXYFILE3
+
+DOXYFILE4=$ROOT/documentation/compiler/Doxyfile
+echo " updating $DOXYFILE4"
+sed "s/PROJECT_NUMBER         = [ 	]*[0-9].*/PROJECT_NUMBER         = $VERSION/" $DOXYFILE4 > TMP$$
+mv -f TMP$$ $DOXYFILE4
 
 make man
 

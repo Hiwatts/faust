@@ -4,16 +4,16 @@
     Copyright (C) 2003-2018 GRAME, Centre National de Creation Musicale
     ---------------------------------------------------------------------
     This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation; either version 2.1 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+    GNU Lesser General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
+    You should have received a copy of the GNU Lesser General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -57,8 +57,12 @@ recSchema::recSchema(schema* s1, schema* s2, double width)
     faustassert(s1->width() >= s2->width());
 
     // create the input and output points
-    for (unsigned int i = 0; i < inputs(); i++) fInputPoint.push_back(point(0, 0));
-    for (unsigned int i = 0; i < outputs(); i++) fOutputPoint.push_back(point(0, 0));
+    for (unsigned int i = 0; i < inputs(); i++) {
+        fInputPoint.push_back(point(0, 0));
+    }
+    for (unsigned int i = 0; i < outputs(); i++) {
+        fOutputPoint.push_back(point(0, 0));
+    }
 }
 
 /**
@@ -162,7 +166,8 @@ void recSchema::collectTraits(collector& c)
 
     // draw the feedback connections to each fSchema2 input
     for (unsigned int i = 0; i < fSchema2->inputs(); i++) {
-        collectFeedback(c, fSchema1->outputPoint(i), fSchema2->inputPoint(i), i * dWire, outputPoint(i));
+        collectFeedback(c, fSchema1->outputPoint(i), fSchema2->inputPoint(i), i * dWire,
+                        outputPoint(i));
     }
 
     // draw the non recursive output lines
@@ -190,7 +195,8 @@ void recSchema::collectTraits(collector& c)
  * Draw a feedback connection between two points with an horizontal
  * displacement dx
  */
-void recSchema::collectFeedback(collector& c, const point& src, const point& dst, double dx, const point& out)
+void recSchema::collectFeedback(collector& c, const point& src, const point& dst, double dx,
+                                const point& out)
 {
     double ox = src.x + ((orientation() == kLeftRight) ? dx : -dx);
     double ct = (orientation() == kLeftRight) ? dWire / 2 : -dWire / 2;

@@ -4,16 +4,16 @@
     Copyright (C) 2003-2018 GRAME, Centre National de Creation Musicale
     ---------------------------------------------------------------------
     This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation; either version 2.1 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+    GNU Lesser General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
+    You should have received a copy of the GNU Lesser General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -22,7 +22,11 @@
 #include <property.hh>
 #include <signals.hh>
 #include <sstream>
+
 #include "exception.hh"
+#include "global.hh"
+
+using namespace std;
 
 /**
  * Extract the sub signals of a signal expression, that is not
@@ -31,14 +35,15 @@
  * @param vsigs a reference to the vector where the subsignals will be placed
  * @return the number of subsignals
  */
-
 int getSubSignals(Tree sig, tvec& vsigs, bool visitgen)
 {
     vsigs.clear();
 
-    int    i;
-    double r;
-    Tree   c, sel, x, y, z, u, v, var, le, label, id, ff, largs, type, name, file, sf;
+    int     i;
+    int64_t i64;
+    double  r;
+    Tree size, gen, wi, ws, tbl, ri, c, sel, x, y, z, u, v, var, le, label, ff, largs, type, name,
+        file, sf;
 
     if (getUserData(sig)) {
         for (int i1 = 0; i1 < sig->arity(); i1++) {
@@ -46,6 +51,8 @@ int getSubSignals(Tree sig, tvec& vsigs, bool visitgen)
         }
         return sig->arity();
     } else if (isSigInt(sig, &i)) {
+        return 0;
+    } else if (isSigInt64(sig, &i64)) {
         return 0;
     } else if (isSigReal(sig, &r)) {
         return 0;
@@ -92,18 +99,21 @@ int getSubSignals(Tree sig, tvec& vsigs, bool visitgen)
         return 0;
     }
 
-    else if (isSigTable(sig, id, x, y)) {
-        vsigs.push_back(x);
-        vsigs.push_back(y);
-        return 2;
-    } else if (isSigWRTbl(sig, id, x, y, z)) {
-        vsigs.push_back(x);
-        vsigs.push_back(y);
-        vsigs.push_back(z);
-        return 3;
-    } else if (isSigRDTbl(sig, x, y)) {
-        vsigs.push_back(x);
-        vsigs.push_back(y);
+    else if (isSigWRTbl(sig, size, gen, wi, ws)) {
+        vsigs.push_back(size);
+        vsigs.push_back(gen);
+        if (wi == gGlobal->nil) {
+            // rdtable
+            return 2;
+        } else {
+            // rwtable
+            vsigs.push_back(wi);
+            vsigs.push_back(ws);
+            return 4;
+        }
+    } else if (isSigRDTbl(sig, tbl, ri)) {
+        vsigs.push_back(tbl);
+        vsigs.push_back(ri);
         return 2;
     }
 
@@ -148,6 +158,9 @@ int getSubSignals(Tree sig, tvec& vsigs, bool visitgen)
     }
 
     else if (isSigIntCast(sig, x)) {
+        vsigs.push_back(x);
+        return 1;
+    } else if (isSigBitCast(sig, x)) {
         vsigs.push_back(x);
         return 1;
     } else if (isSigFloatCast(sig, x)) {
@@ -221,11 +234,15 @@ int getSubSignals(Tree sig, tvec& vsigs, bool visitgen)
         vsigs.push_back(x);
         return 1;
     }
-    
+
+    else if (isSigRegister(sig, &i, x)) {
+        vsigs.push_back(x);
+        return 1;
+    }
+
     else {
-        stringstream error;
-        error << "ERROR : getSubSignals unrecognized signal : " << *sig << endl;
-        throw faustexception(error.str());
+        cerr << "ASSERT : getSubSignals unrecognized signal : " << *sig << endl;
+        faustassert(false);
     }
     return 0;
 }

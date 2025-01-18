@@ -37,7 +37,6 @@
 #include <list>
 
 #include "faust/dsp/timed-dsp.h"
-#include "faust/dsp/one-sample-dsp.h"
 #include "faust/gui/FUI.h"
 #include "faust/gui/PrintUI.h"
 #include "faust/misc.h"
@@ -45,13 +44,12 @@
 #include "faust/gui/JSONUI.h"
 #include "faust/gui/PresetUI.h"
 #include "faust/audio/jack-dsp.h"
+#ifdef FIXED_POINT
+#include "faust/dsp/fixed-point.h"
+#endif
 
 #ifdef OSCCTRL
 #include "faust/gui/OSCUI.h"
-static void osc_compute_callback(void* arg)
-{
-    static_cast<OSCUI*>(arg)->endBundle();
-}
 #endif
 
 #ifdef HTTPCTRL
@@ -112,20 +110,21 @@ int main(int argc, char* argv[])
     char rcfilename[256];
     char* home = getenv("HOME");
     bool midi_sync = false;
+    bool midi = false;
     int nvoices = 0;
     bool control = true;
     
+    if (isopt(argv, "-h")) {
+        cout << argv[0] << " [--nvoices <val>] [--control <0/1>] [--group <0/1>]\n";
+        exit(1);
+    }
+    
     mydsp* tmp_dsp = new mydsp();
-    MidiMeta::analyse(tmp_dsp, midi_sync, nvoices);
+    MidiMeta::analyse(tmp_dsp, midi, midi_sync, nvoices);
     delete tmp_dsp;
     
     snprintf(name, 256, "%s", basename(argv[0]));
     snprintf(rcfilename, 256, "%s/.%src", home, name);
-    
-    if (isopt(argv, "-h")) {
-        cout << "prog [--nvoices <val>] [--control <0/1>] [--group <0/1>]\n";
-        exit(1);
-    }
     
 #ifdef POLY2
     nvoices = lopt(argv, "--nvoices", nvoices);
@@ -220,7 +219,6 @@ int main(int argc, char* argv[])
     OSCUI oscinterface(name, argc, argv);
     DSP->buildUserInterface(&oscinterface);
     cout << "OSC is on" << endl;
-    audio.addControlCallback(osc_compute_callback, &oscinterface);
 #endif
     
 #ifdef MIDICTRL

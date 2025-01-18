@@ -4,16 +4,16 @@
     Copyright (C) 2003-2018 GRAME, Centre National de Creation Musicale
     ---------------------------------------------------------------------
     This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation; either version 2.1 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+    GNU Lesser General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
+    You should have received a copy of the GNU Lesser General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -63,7 +63,9 @@ PSDev::PSDev(const char* ficName, double largeur, double hauteur)
         throw faustexception(error.str());
     }
 
-    if (largeur < hauteur) largeur = hauteur;
+    if (largeur < hauteur) {
+        largeur = hauteur;
+    }
 
     fprintf(fic_repr, "%%!PS-Adobe-3.0 \n");
     // fprintf(fic_repr,"%%%%Pages: (atend) \n");
@@ -71,7 +73,8 @@ PSDev::PSDev(const char* ficName, double largeur, double hauteur)
 
     fprintf(fic_repr, "/unit {%f mul} def\n\n", 450 / largeur);
     fprintf(fic_repr, "0 %f unit translate\n", hauteur);
-    fprintf(fic_repr, "1 -1 scale\n\n");           // postscript's origin = lower left corner (SVG:upper left)
+    fprintf(fic_repr,
+            "1 -1 scale\n\n");  // postscript's origin = lower left corner (SVG:upper left)
     fprintf(fic_repr, "0.6 unit setlinewidth\n");  // lines' width
 
     fprintf(fic_repr, "/Times-Roman findfont   %% Get the basic font for text\n");
@@ -101,7 +104,8 @@ void PSDev::rect(double x, double y, double l, double h, const char*, const char
     fprintf(fic_repr, "grestore\n");
 }
 
-void PSDev::triangle(double x, double y, double l, double h, const char*, const char*, bool leftright)
+void PSDev::triangle(double x, double y, double l, double h, const char*, const char*,
+                     bool leftright)
 {
     fprintf(fic_repr, "gsave\n");
     fprintf(fic_repr, "newpath\n");
@@ -237,7 +241,8 @@ void PSDev::markSens(double x, double y, int sens)
     fprintf(fic_repr, "stroke\n");
 }
 
-void PSDev::Error(const char* message, const char* reason, int nb_error, double x, double y, double largeur)
+void PSDev::Error(const char* message, const char* reason, int nb_error, double x, double y,
+                  double largeur)
 {
     fprintf(fic_repr, "gsave\n");
     fprintf(fic_repr, "/Times-Roman findfont   %% Get the basic font for text\n");

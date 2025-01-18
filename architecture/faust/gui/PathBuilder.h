@@ -22,22 +22,23 @@
  architecture section is not modified.
  ************************************************************************/
 
-#ifndef FAUST_PATHBUILDER_H
-#define FAUST_PATHBUILDER_H
+#ifndef __PathBuilder__
+#define __PathBuilder__
 
 #include <vector>
 #include <set>
+#include <map>
 #include <string>
 #include <algorithm>
-#include <regex>
+
+#include "faust/export.h"
 
 /*******************************************************************************
  * PathBuilder : Faust User Interface
  * Helper class to build complete hierarchical path for UI items.
  ******************************************************************************/
 
-class PathBuilder
-{
+class FAUST_API PathBuilder {
 
     protected:
     
@@ -62,9 +63,16 @@ class PathBuilder
          * @param src
          * @return modified string
          */
-        std::string remove0x00(const std::string& src) const
+        std::string remove0x00(const std::string& src_aux) const
         {
-            return std::regex_replace(src, std::regex("/0x00"), "");
+            std::string src = src_aux;
+            std::string from = "/0x00";
+            std::string to = "";
+            size_t pos = std::string::npos;
+            while ((pos = src.find(from)) && (pos != std::string::npos)) {
+                src = src.replace(pos, from.length(), to);
+            }
+            return src;
         }
     
         /**
@@ -101,13 +109,13 @@ class PathBuilder
         std::string cut(const std::string& src, int n) const
         {
             std::string rdst;
-            for (int i = src.length()-1; i >= 0; i--) {
+            for (int i = int(src.length())-1; i >= 0; i--) {
                 char c = src[i];
                 if (c != '/') {
                     rdst.push_back(c);
                 } else if (n == 1) {
                     std::string dst;
-                    for (int j = rdst.length()-1; j >= 0; j--) {
+                    for (int j = int(rdst.length())-1; j >= 0; j--) {
                         dst.push_back(rdst[j]);
                     }
                     return dst;
@@ -128,11 +136,12 @@ class PathBuilder
         {
             std::vector<std::string>           uniquePaths;  // all full paths transformed but made unique with a prefix
             std::map<std::string, std::string> unique2full;  // all full paths transformed but made unique with a prefix
-            char num_buffer[8];
+            char num_buffer[16];
             int pnum = 0;
-        
+            
             for (const auto& s : fFullPaths) {
-                sprintf(num_buffer, "%d", pnum++);
+                // Using snprintf since Teensy does not have the std::to_string function
+                snprintf(num_buffer, 16, "%d", pnum++);
                 std::string u = "/P" + std::string(num_buffer) + str2ID(remove0x00(s));
                 uniquePaths.push_back(u);
                 unique2full[u] = s;  // remember the full path associated to a unique path
@@ -173,16 +182,15 @@ class PathBuilder
             }
         }
     
-        std::string replaceCharList(std::string str, const std::vector<char>& ch1, char ch2)
+        std::string replaceCharList(const std::string& str, const std::vector<char>& ch1, char ch2)
         {
-            std::vector<char>::const_iterator beg = ch1.begin();
-            std::vector<char>::const_iterator end = ch1.end();
+            auto beg = ch1.begin();
+            auto end = ch1.end();
+            std::string res = str;
             for (size_t i = 0; i < str.length(); ++i) {
-                if (std::find(beg, end, str[i]) != end) {
-                    str[i] = ch2;
-                }
+                if (std::find(beg, end, str[i]) != end) res[i] = ch2;
             }
-            return str;
+            return res;
         }
      
     public:
@@ -191,24 +199,36 @@ class PathBuilder
         virtual ~PathBuilder() {}
     
         // Return true for the first level of groups
-        bool pushLabel(const std::string& label) { fControlsLevel.push_back(label); return fControlsLevel.size() == 1;}
+        bool pushLabel(const std::string& label_aux)
+        {
+            std::string label = replaceCharList(label_aux, {'/'}, '_');
+            fControlsLevel.push_back(label); return fControlsLevel.size() == 1;
+        }
     
         // Return true for the last level of groups
         bool popLabel() { fControlsLevel.pop_back(); return fControlsLevel.size() == 0; }
     
-        std::string buildPath(const std::string& label)
+        // Return a complete path built from a label
+        std::string buildPath(const std::string& label_aux)
         {
+            std::string label = replaceCharList(label_aux, {'/'}, '_');
             std::string res = "/";
             for (size_t i = 0; i < fControlsLevel.size(); i++) {
-                res += fControlsLevel[i];
-                res += "/";
+                res = res + fControlsLevel[i] + "/";
             }
             res += label;
-            replaceCharList(res, {' ', '#', '*', ',', '/', '?', '[', ']', '{', '}', '(', ')'}, '_');
-            return res;
+            return replaceCharList(res, {' ', '#', '*', ',', '?', '[', ']', '{', '}', '(', ')'}, '_');
         }
+    
+        // Assuming shortnames have been built, return the shortname from a label
+        std::string buildShortname(const std::string& label)
+        {
+            return (hasShortname()) ? fFull2Short[buildPath(label)] : "";
+        }
+    
+        bool hasShortname() { return fFull2Short.size() > 0; }
     
 };
 
-#endif  // FAUST_PATHBUILDER_H
+#endif  // __PathBuilder__
 /**************************  END  PathBuilder.h **************************/

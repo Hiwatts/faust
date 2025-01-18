@@ -4,16 +4,16 @@
     Copyright (C) 2003-2018 GRAME, Centre National de Creation Musicale
     ---------------------------------------------------------------------
     This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation; either version 2.1 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+    GNU Lesser General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
+    You should have received a copy of the GNU Lesser General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -30,25 +30,26 @@ class MaxPrim : public xtended {
    public:
     MaxPrim() : xtended("max") {}
 
-    virtual unsigned int arity() { return 2; }
+    virtual unsigned int arity() override { return 2; }
 
-    virtual bool needCache() { return true; }
+    virtual bool needCache() override { return true; }
 
-    virtual ::Type infereSigType(const vector<::Type>& types)
-    {
-        faustassert(types.size() == arity());
-        interval i = types[0]->getInterval();
-        interval j = types[1]->getInterval();
-        return castInterval(types[0] | types[1], max(i, j));
-    }
-
-    virtual int infereSigOrder(const vector<int>& args)
+    virtual ::Type inferSigType(ConstTypes args) override
     {
         faustassert(args.size() == arity());
-        return max(args[0], args[1]);
+        interval i = args[0]->getInterval();
+        interval j = args[1]->getInterval();
+        // Use 'max' on intervals here...
+        return castInterval(args[0] | args[1], gAlgebra.Max(i, j));
     }
 
-    virtual Tree computeSigOutput(const vector<Tree>& args)
+    virtual int inferSigOrder(const std::vector<int>& args) override
+    {
+        faustassert(args.size() == arity());
+        return std::max(args[0], args[1]);
+    }
+
+    virtual Tree computeSigOutput(const std::vector<Tree>& args) override
     {
         double f, g;
         int    i, j;
@@ -57,18 +58,18 @@ class MaxPrim : public xtended {
 
         if (isDouble(args[0]->node(), &f)) {
             if (isDouble(args[1]->node(), &g)) {
-                return tree(max(f, g));
+                return tree(std::max(f, g));
             } else if (isInt(args[1]->node(), &j)) {
-                return tree(max(f, double(j)));
+                return tree(std::max(f, double(j)));
             } else {
                 return tree(symbol(), args[0], args[1]);
             }
 
         } else if (isInt(args[0]->node(), &i)) {
             if (isDouble(args[1]->node(), &g)) {
-                return tree(max(double(i), g));
+                return tree(std::max(double(i), g));
             } else if (isInt(args[1]->node(), &j)) {
-                return tree(max(i, j));
+                return tree(std::max(i, j));
             } else {
                 return tree(symbol(), args[0], args[1]);
             }
@@ -78,113 +79,37 @@ class MaxPrim : public xtended {
         }
     }
 
-    virtual ValueInst* generateCode(CodeContainer* container, list<ValueInst*>& args, ::Type result,
-                                    vector<::Type> const& types)
+    virtual ValueInst* generateCode(CodeContainer* container, Values& args, ::Type result,
+                                    ConstTypes types) override
     {
         faustassert(args.size() == arity());
         faustassert(types.size() == arity());
-    
+
         /*
-         04/25/22 : this optimisation cannot be done because interval computation is buggy: like no.noise interval [O..inf] !
+         04/25/22 : this optimisation cannot be done because interval computation is buggy: like
+         no.noise interval [O..inf] !
          */
-    
+
         /*
             // Max of disjoint intervals returns one of them
             interval i1 = types[0]->getInterval();
             interval i2 = types[1]->getInterval();
-            
-            if (i1.valid && i2.valid) {
-                if (i1.hi <= i2.lo) {
+
+            if (i1.isValid() && i2.isValid()) {
+                if (i1.hi() <= i2.lo()) {
                     return *(std::next(args.begin(), 1));
-                } else if (i2.hi <= i1.lo) {
+                } else if (i2.hi() <= i1.lo()) {
                     return *args.begin();
                 }
             }
         */
 
-        Typed::VarType         result_type = (result->nature() == kInt) ? Typed::kInt32 : itfloat();
-        vector<Typed::VarType> arg_types;
-        list<ValueInst*>       casted_args;
-    
-        // generates code compatible with overloaded max
-        int n0 = types[0]->nature();
-        int n1 = types[1]->nature();
-        if (n0 == kReal) {
-            // prepare args types
-            arg_types.push_back(itfloat());
-            arg_types.push_back(itfloat());
-
-            if (n1 == kReal) {
-                // both are floats, no need to cast
-                return container->pushFunction(subst("max_$0", isuffix()), result_type, arg_types, args);
-            } else {
-                faustassert(n1 == kInt);  // second argument is not float, cast it to float
-                // prepare args values
-                ListValuesIt it2 = args.begin();
-                casted_args.push_back((*it2));
-                it2++;
-                casted_args.push_back(InstBuilder::genCastFloatInst(*it2));
-                return container->pushFunction(subst("max_$0", isuffix()), result_type, arg_types, casted_args);
-            }
-        } else if (n1 == kReal) {
-            faustassert(n0 == kInt);  // first not float but second is, cast first to float
-
-            // prepare args types
-            arg_types.push_back(itfloat());
-            arg_types.push_back(itfloat());
-
-            // prepare args values
-            ListValuesIt it2 = args.begin();
-            casted_args.push_back(InstBuilder::genCastFloatInst(*it2));
-            it2++;
-            casted_args.push_back((*it2));
-            return container->pushFunction(subst("max_$0", isuffix()), result_type, arg_types, casted_args);
-        } else {
-            faustassert(n0 == kInt);
-            faustassert(n1 == kInt);  // both are integers, check for booleans
-            int b0 = types[0]->boolean();
-            int b1 = types[1]->boolean();
-
-            // prepare args types
-            arg_types.push_back(Typed::kInt32);
-            arg_types.push_back(Typed::kInt32);
-
-            if (b0 == kNum) {
-                if (b1 == kNum) {
-                    // both are integers, no need to cast
-                    return container->pushFunction("max_i", result_type, arg_types, args);
-                } else {
-                    faustassert(b1 == kBool);  // second is boolean, cast to int
-                    // prepare args values
-                    ListValuesIt it2 = args.begin();
-                    casted_args.push_back((*it2));
-                    it2++;
-                    casted_args.push_back(InstBuilder::genCastInt32Inst(*it2));
-                    return container->pushFunction("max_i", result_type, arg_types, casted_args);
-                }
-            } else if (b1 == kNum) {
-                faustassert(b0 == kBool);  // first is boolean, cast to int
-                // prepare args values
-                ListValuesIt it2 = args.begin();
-                casted_args.push_back(InstBuilder::genCastInt32Inst(*it2));
-                it2++;
-                casted_args.push_back((*it2));
-                return container->pushFunction("max_i", result_type, arg_types, casted_args);
-            } else {
-                // both are booleans, theoretically no need to cast, but we still do it to be sure 'true' is actually
-                // '1' and 'false' is actually '0' (which is not the case if compiled in SSE mode)
-                faustassert(b0 == kBool);
-                faustassert(b1 == kBool);  // both are booleans, cast both
-                ListValuesIt it2 = args.begin();
-                casted_args.push_back(InstBuilder::genCastInt32Inst(*it2));
-                it2++;
-                casted_args.push_back(InstBuilder::genCastInt32Inst(*it2));
-                return container->pushFunction("max_i", result_type, arg_types, casted_args);
-            }
-        }
+        std::string fun_name = (result->nature() == kInt) ? "max_i" : subst("max_$0", isuffix());
+        return generateFun(container, fun_name, args, result, types);
     }
 
-    virtual string generateCode(Klass* klass, const vector<string>& args, const vector<::Type>& types)
+    virtual std::string generateCode(Klass* klass, const std::vector<std::string>& args,
+                                     ConstTypes types) override
     {
         faustassert(args.size() == arity());
         faustassert(types.size() == arity());
@@ -220,8 +145,9 @@ class MaxPrim : public xtended {
                 faustassert(b0 == kBool);  // first is boolean, cast to int
                 return subst("max(int($0), $1)", args[0], args[1], icast());
             } else {
-                // both are booleans, theoretically no need to cast, but we still do it to be sure 'true' is actually
-                // '1' and 'false' is actually '0' (which is not the case if compiled in SSE mode)
+                // both are booleans, theoretically no need to cast, but we still do it to be sure
+                // 'true' is actually '1' and 'false' is actually '0' (which is not the case if
+                // compiled in SSE mode)
                 faustassert(b0 == kBool);
                 faustassert(b1 == kBool);
                 return subst("max(int($0), int($1))", args[0], args[1]);
@@ -229,12 +155,34 @@ class MaxPrim : public xtended {
         }
     }
 
-    virtual string generateLateq(Lateq* lateq, const vector<string>& args, const vector<::Type>& types)
+    virtual std::string generateLateq(Lateq* lateq, const std::vector<std::string>& args,
+                                      ConstTypes types) override
     {
         faustassert(args.size() == arity());
         faustassert(types.size() == arity());
 
-        ::Type t = infereSigType(types);
+        ::Type t = inferSigType(types);
         return subst("\\max\\left( $0, $1 \\right)", args[0], args[1]);
+    }
+
+    Tree diff(const std::vector<Tree>& args) override
+    {
+        /*                /
+         *                | f', f > g
+         * (max(f, g))' = {
+         *                | g', otherwise
+         *                \
+         */
+        return sigSelect2(sigGT(args[0], args[1]), args[2], args[3]);
+    }
+
+    double compute(const std::vector<Node>& args) override
+    {
+        int i, j;
+        if (isInt(args[0], &i) && isInt(args[1], &j)) {
+            return std::max(i, j);
+        } else {
+            return std::max(args[0].getDouble(), args[1].getDouble());
+        }
     }
 };

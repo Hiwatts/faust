@@ -4,16 +4,16 @@
     Copyright (C) 2003-2018 GRAME, Centre National de Creation Musicale
     ---------------------------------------------------------------------
     This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation; either version 2.1 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+    GNU Lesser General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
+    You should have received a copy of the GNU Lesser General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -35,12 +35,12 @@ using namespace std;
 
 /**
  * @file recursivness.cpp
- * Annotate a signal expression with recursivness information. Recursiveness
- * indicates the amount of recursive dependencies of a signal. A closed signal
+ * Annotate a signal expression with recursivness information, the amount of
+ * recursive dependencies of a signal. A closed signal
  * has a recursivness of 0 because is has no recursive dependencies. This means
- * that the succesive samples of this signal can be computed in parallel.
+ * that the successive samples of this signal can be computed in parallel.
  * In a signal of type \x.(...F(x)...), F(x) has a recursivness of 1. In a
- * signal of type \x.(... \y.(...F(x)...G(y)...)...) F(x) has a recursivness of 2
+ * signal of type \x.(... \y.(...F(x)...G(y)...)...), F(x) has a recursivness of 2
  * while G(y) has a recursivness of 1.
  */
 
@@ -50,8 +50,9 @@ static int position(Tree env, Tree t, int p = 1);
 //--------------------------------------------------------------------------
 
 /**
- * Annotate a signal with recursivness. Should be used before
- * calling getRecursivness
+ * Annotate a signal with recursivness information, the amount of
+ * recursive dependencies of a signal. Should be used before
+ * calling getRecursivness.
  * @param sig signal to annotate
  */
 void recursivnessAnnotation(Tree sig)
@@ -70,9 +71,8 @@ int getRecursivness(Tree sig)
 {
     Tree tr;
     if (!getProperty(sig, gGlobal->RECURSIVNESS, tr)) {
-        stringstream error;
-        error << "ERROR in getRecursivness of " << *sig << endl;
-        throw faustexception(error.str());
+        cerr << "ASSERT : getRecursivness of " << *sig << endl;
+        faustassert(false);
     }
     return tree2int(tr);
 }
@@ -96,7 +96,9 @@ static int annotate(Tree env, Tree sig)
             return p;  // we are inside \x.(...)
         } else {
             int r = annotate(cons(sig, env), body) - 1;
-            if (r < 0) r = 0;
+            if (r < 0) {
+                r = 0;
+            }
             setProperty(sig, gGlobal->RECURSIVNESS, tree(r));
             return r;
         }
@@ -104,9 +106,11 @@ static int annotate(Tree env, Tree sig)
         int          rmax = 0;
         vector<Tree> v;
         getSubSignals(sig, v);
-        for (unsigned int i = 0; i < v.size(); i++) {
+        for (size_t i = 0; i < v.size(); i++) {
             int r = annotate(env, v[i]);
-            if (r > rmax) rmax = r;
+            if (r > rmax) {
+                rmax = r;
+            }
         }
         setProperty(sig, gGlobal->RECURSIVNESS, tree(rmax));
         return rmax;
@@ -121,7 +125,9 @@ static int annotate(Tree env, Tree sig)
  */
 static int position(Tree env, Tree t, int p)
 {
-    if (isNil(env)) return 0;  // was not in the environment
+    if (isNil(env)) {
+        return 0;  // was not in the environment
+    }
     if (hd(env) == t) {
         return p;
     } else {
@@ -130,14 +136,12 @@ static int position(Tree env, Tree t, int p)
 }
 
 //-----------------------------------list recursive symbols-----------------------
-
 /**
  * Return the set of recursive symbols appearing in a signal.
  * @param sig the signal to analyze
  * @return the set of symbols
  */
-
-Tree symlistVisit(Tree sig, set<Tree>& visited)
+static Tree symlistVisit(Tree sig, set<Tree>& visited)
 {
     Tree S;
 
@@ -155,9 +159,9 @@ Tree symlistVisit(Tree sig, set<Tree>& visited)
             }
             return U;
         } else {
-            vector<Tree> subsigs;
-            int          n = getSubSignals(sig, subsigs, true);  // il faut visiter aussi les tables
-            Tree         U = gGlobal->nil;
+            tvec subsigs;
+            int  n = getSubSignals(sig, subsigs, true);  // tables have to be visited also
+            Tree U = gGlobal->nil;
             for (int i = 0; i < n; i++) {
                 U = setUnion(U, symlistVisit(subsigs[i], visited));
             }
@@ -166,6 +170,11 @@ Tree symlistVisit(Tree sig, set<Tree>& visited)
     }
 }
 
+/**
+ * Return the set of recursive symbols appearing in a signal.
+ * @param sig the signal to analyze
+ * @return the set of symbols
+ */
 Tree symlist(Tree sig)
 {
     Tree S;

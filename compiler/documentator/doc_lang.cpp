@@ -4,16 +4,16 @@
  Copyright (C) 2003-2018 GRAME, Centre National de Creation Musicale
  ---------------------------------------------------------------------
  This program is free software; you can redistribute it and/or modify
- it under the terms of the GNU General Public License as published by
- the Free Software Foundation; either version 2 of the License, or
+ it under the terms of the GNU Lesser General Public License as published by
+ the Free Software Foundation; either version 2.1 of the License, or
  (at your option) any later version.
 
  This program is distributed in the hope that it will be useful,
  but WITHOUT ANY WARRANTY; without even the implied warranty of
  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
+ GNU Lesser General Public License for more details.
 
- You should have received a copy of the GNU General Public License
+ You should have received a copy of the GNU Lesser General Public License
  along with this program; if not, write to the Free Software
  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -34,15 +34,17 @@
 #include "doc_notice.hh"
 #include "enrobage.hh"
 #include "exception.hh"
+#include "files.hh"
 #include "global.hh"
 #include "lateq.hh"
-#include "files.hh"
 
-static void     importDocStrings(const string& filename);
-static void     getKey(const string& s, string& key, size_t& pt1);
-static void     getText(const string& s, size_t pt1, string& text);
-static void     storePair(const string& key, const string& text);
-static void     printStringMapContent(map<string, string>& map, const string& name);
+using namespace std;
+
+static void                 importDocStrings(const string& filename);
+static void                 getKey(const string& s, string& key, size_t& pt1);
+static void                 getText(const string& s, size_t pt1, string& text);
+static void                 storePair(const string& key, const string& text);
+static void                 printStringMapContent(map<string, string>& map, const string& name);
 static unique_ptr<ifstream> openArchFile(const string& filename);
 
 /*****************************************************************************
@@ -84,8 +86,8 @@ void loadTranslationFile(const string& lang)
  */
 static void importDocStrings(const string& filename)
 {
-    string   s;
-    string   key, text;
+    string               s;
+    string               key, text;
     unique_ptr<ifstream> file = openArchFile(filename);
 
     while (getline(*file, s)) {
@@ -96,7 +98,9 @@ static void importDocStrings(const string& filename)
             case ':':
                 text = "";
                 getKey(s, key, pt1);
-                if (pt1 == string::npos) continue;
+                if (pt1 == string::npos) {
+                    continue;
+                }
                 break;
             case '\"':
                 pt1 = 0;
@@ -123,7 +127,9 @@ static void getKey(const string& s, string& key, size_t& pt1)
     size_t pk2        = s.find_first_of(separators);
 
     /* Immediate '\n' after keyword case. */
-    if (pk2 == string::npos) pk2 = s.size();
+    if (pk2 == string::npos) {
+        pk2 = s.size();
+    }
 
     /* Capture and check the keyword. */
     key = s.substr(pk1, pk2 - 1);
@@ -137,7 +143,9 @@ static void getText(const string& s, size_t pt1, string& text)
     /* Capture the text on the current line. */
     size_t pt2 = s.find_last_not_of("\"");
     if (pt2 != string::npos) {
-        if (text.size() > 0) text += "\n";  // Handle line breaks.
+        if (text.size() > 0) {
+            text += "\n";  // Handle line breaks.
+        }
         text += s.substr(pt1 + 1, pt2 - pt1);
     }
 }
@@ -158,7 +166,8 @@ static void storePair(const string& key, const string& text)
             cerr << "Documentator : importDocStings : "
                  << "warning : unknown key \"" << key << "\"" << endl;
         }
-        // cerr << "gGlobal->gDocNoticeStringMap[\"" << key << "\"] = \"" << gGlobal->gDocNoticeStringMap[key] << "\""
+        // cerr << "gGlobal->gDocNoticeStringMap[\"" << key << "\"] = \"" <<
+        // gGlobal->gDocNoticeStringMap[key] << "\""
         // << endl;
     }
 }
@@ -174,7 +183,8 @@ static void printStringMapContent(map<string, string>& m, const string& name)
         map<string, string>::iterator it;
         int                           i = 1;
         for (it = m.begin(); it != m.end(); ++it) {
-            cout << i++ << ".\t" << name << "[" << it->first << "] \t= '" << it->second << "'" << endl;
+            cout << i++ << ".\t" << name << "[" << it->first << "] \t= '" << it->second << "'"
+                 << endl;
         }
     }
 }

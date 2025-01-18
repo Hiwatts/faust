@@ -40,7 +40,8 @@ architecture section is not modified.
 #include "faust/gui/meta.h"
 
 /*!
- \addtogroup llvmcpp C++ interface for compiling Faust code with the LLVM backend. Note that the API is not thread safe: use 'startMTDSPFactories/stopMTDSPFactories' to use it in a multi-thread context.
+ \addtogroup llvmcpp C++ interface for compiling Faust code with the LLVM backend.
+ Note that the API is not thread safe: use 'startMTDSPFactories/stopMTDSPFactories' to use it in a multi-thread context.
  @{
  */
  
@@ -49,12 +50,12 @@ architecture section is not modified.
  * 
  * @return the library version as a static string.
  */
-extern "C" const char* getCLibFaustVersion();
+extern "C" LIBFAUST_API const char* getCLibFaustVersion();
 
 /**
  * DSP instance class with methods.
  */
-class llvm_dsp : public dsp {
+class LIBFAUST_API llvm_dsp : public dsp {
     
     private:
     
@@ -63,28 +64,74 @@ class llvm_dsp : public dsp {
     
     public:
         
+        /* Return instance number of audio inputs */
         int getNumInputs();
        
+        /* Return instance number of audio outputs */
         int getNumOutputs();
         
+        /**
+         * Trigger the ui_interface parameter with instance specific calls
+         * to 'openTabBox', 'addButton', 'addVerticalSlider'... in order to build the UI.
+         *
+         * @param ui_interface - the user interface builder
+         */
         void buildUserInterface(UI* ui_interface);
        
+        /* Return the sample rate currently used by the instance */
         int getSampleRate();
         
+        /**
+         * Global init, calls the following methods:
+         * - static class 'classInit': static tables initialization
+         * - 'instanceInit': constants and instance state initialization
+         *
+         * @param sample_rate - the sampling rate in Hz
+         */
         void init(int sample_rate);
        
+        /**
+         * Init instance state
+         *
+         * @param sample_rate - the sampling rate in Hz
+         */
         void instanceInit(int sample_rate);
     
+        /**
+         * Init instance constant state
+         *
+         * @param sample_rate - the sampling rate in Hz
+         */
         void instanceConstants(int sample_rate);
     
+        /* Init default control parameters values */
         void instanceResetUserInterface();
         
+        /* Init instance state (like delay lines...) but keep the control parameter values */
         void instanceClear();
         
+        /**
+         * Return a clone of the instance.
+         *
+         * @return a copy of the instance on success, otherwise a null pointer.
+         */
         llvm_dsp* clone();
         
+        /**
+         * Trigger the Meta* parameter with instance specific calls to 'declare' (key, value) metadata.
+         *
+         * @param m - the Meta* meta user
+         */
         void metadata(Meta* m);
         
+        /**
+         * DSP instance computation, to be called with successive in/out audio buffers.
+         *
+         * @param count - the number of frames to compute
+         * @param inputs - the input audio buffers as an array of non-interleaved FAUSTFLOAT samples (eiher float, double or quad)
+         * @param outputs - the output audio buffers as an array of non-interleaved FAUSTFLOAT samples (eiher float, double or quad)
+         *
+         */
         void compute(int count, FAUSTFLOAT** inputs, FAUSTFLOAT** outputs);
     
 };
@@ -93,7 +140,7 @@ class llvm_dsp : public dsp {
  * DSP factory class.
  */
 
-class llvm_dsp_factory : public dsp_factory {
+class LIBFAUST_API llvm_dsp_factory : public dsp_factory {
 
      public:
     
@@ -107,7 +154,7 @@ class llvm_dsp_factory : public dsp_factory {
         */
         std::string getName();
     
-        /* Return factory LLVM target (like 'i386-apple-macosx10.6.0:opteron')*/
+        /* Return factory LLVM target (like 'i386-apple-macosx10.6.0:opteron') */
         std::string getTarget();
         
         /* Return factory SHA key */
@@ -124,9 +171,19 @@ class llvm_dsp_factory : public dsp_factory {
         
         /* Get the list of all used includes */
         std::vector<std::string> getIncludePathnames();
+    
+        /* Get warning messages list for a given compilation */
+        std::vector<std::string> getWarningMessages();
         
-        /* Create a new DSP instance, to be deleted with C++ 'delete' */
+        /* Create a new DSP instance, to be deleted with C++ 'delete'.
+         Note that the factory keeps track of all DSP allocated with 'createDSPInstance',
+         so a DSP can be manually deleted using the C++ 'delete', or will be finally garbaged
+         by 'deleteDSPFactory' if needed.
+         */
         llvm_dsp* createDSPInstance();
+    
+        /* Static tables initialization */
+        void classInit(int sample_rate);
         
         /* Set a custom memory manager to be used when creating instances */
         void setMemoryManager(dsp_memory_manager* manager);
@@ -141,7 +198,7 @@ class llvm_dsp_factory : public dsp_factory {
  *
  * @return the target as a string.
  */
-std::string getDSPMachineTarget();
+LIBFAUST_API std::string getDSPMachineTarget();
 
 /**
  * Get the Faust DSP factory associated with a given SHA key (created from the 'expanded' DSP source), 
@@ -152,7 +209,7 @@ std::string getDSPMachineTarget();
  *
  * @return a DSP factory if one is associated with the SHA key, otherwise a null pointer.
  */
-llvm_dsp_factory* getDSPFactoryFromSHAKey(const std::string& sha_key);
+LIBFAUST_API llvm_dsp_factory* getDSPFactoryFromSHAKey(const std::string& sha_key);
 
 /**
  * Create a Faust DSP factory from a DSP source code as a file. Note that the library keeps an internal cache of all 
@@ -172,11 +229,11 @@ llvm_dsp_factory* getDSPFactoryFromSHAKey(const std::string& sha_key);
  *
  * @return a DSP factory on success, otherwise a null pointer.
  */ 
-llvm_dsp_factory* createDSPFactoryFromFile(const std::string& filename, 
-                                           int argc, const char* argv[], 
-                                           const std::string& target, 
-                                           std::string& error_msg,
-                                           int opt_level = -1);
+LIBFAUST_API llvm_dsp_factory* createDSPFactoryFromFile(const std::string& filename,
+                                                        int argc, const char* argv[],
+                                                        const std::string& target,
+                                                        std::string& error_msg,
+                                                        int opt_level = -1);
 
 /**
  * Create a Faust DSP factory from a DSP source code as a string. Note that the library keeps an internal cache of all 
@@ -197,12 +254,12 @@ llvm_dsp_factory* createDSPFactoryFromFile(const std::string& filename,
  *
  * @return a DSP factory on success, otherwise a null pointer.
  */ 
-llvm_dsp_factory* createDSPFactoryFromString(const std::string& name_app,
-                                             const std::string& dsp_content,
-                                             int argc, const char* argv[], 
-                                             const std::string& target, 
-                                             std::string& error_msg,
-                                             int opt_level = -1);
+LIBFAUST_API llvm_dsp_factory* createDSPFactoryFromString(const std::string& name_app,
+                                                        const std::string& dsp_content,
+                                                        int argc, const char* argv[],
+                                                        const std::string& target,
+                                                        std::string& error_msg,
+                                                        int opt_level = -1);
 
 /**
  * Create a Faust DSP factory from a vector of output signals.
@@ -221,11 +278,11 @@ llvm_dsp_factory* createDSPFactoryFromString(const std::string& name_app,
  *
  * @return a DSP factory on success, otherwise a null pointer.
  */
-llvm_dsp_factory* createDSPFactoryFromSignals(const std::string& name_app, tvec signals_vec,
-                                              int argc, const char* argv[],
-                                              const std::string& target,
-                                              std::string& error_msg,
-                                              int opt_level = -1);
+LIBFAUST_API llvm_dsp_factory* createDSPFactoryFromSignals(const std::string& name_app, tvec signals_vec,
+                                                        int argc, const char* argv[],
+                                                        const std::string& target,
+                                                        std::string& error_msg,
+                                                        int opt_level = -1);
 
 /**
  * Create a Faust DSP factory from a box expression.
@@ -244,11 +301,11 @@ llvm_dsp_factory* createDSPFactoryFromSignals(const std::string& name_app, tvec 
  *
  * @return a DSP factory on success, otherwise a null pointer.
  */
-llvm_dsp_factory* createDSPFactoryFromBoxes(const std::string& name_app, Box box,
-                                            int argc, const char* argv[],
-                                            const std::string& target,
-                                            std::string& error_msg,
-                                            int opt_level = -1);
+LIBFAUST_API llvm_dsp_factory* createDSPFactoryFromBoxes(const std::string& name_app, Box box,
+                                                        int argc, const char* argv[],
+                                                        const std::string& target,
+                                                        std::string& error_msg,
+                                                        int opt_level = -1);
 
 /**
  * Delete a Faust DSP factory, that is decrements it's reference counter, possibly really deleting the internal pointer. 
@@ -259,7 +316,7 @@ llvm_dsp_factory* createDSPFactoryFromBoxes(const std::string& name_app, Box box
  *
  * @return true if the factory internal pointer was really deleted, and false if only 'decremented'.
  */                                 
-bool deleteDSPFactory(llvm_dsp_factory* factory);
+LIBFAUST_API bool deleteDSPFactory(llvm_dsp_factory* factory);
 
 /**
  * Get the Faust DSP factory list of library dependancies.
@@ -274,29 +331,27 @@ DEPRECATED(std::vector<std::string> getDSPFactoryLibraryList(llvm_dsp_factory* f
 
 /**
  * Delete all Faust DSP factories kept in the library cache. Beware: all kept factory and DSP pointers (in local variables...) thus become invalid.
- * 
  */                                 
-void deleteAllDSPFactories();
+LIBFAUST_API void deleteAllDSPFactories();
 
 /**
  * Return Faust DSP factories of the library cache as a vector of their SHA keys.
  * 
  * @return the Faust DSP factories.
  */                                 
-std::vector<std::string> getAllDSPFactories();
+LIBFAUST_API std::vector<std::string> getAllDSPFactories();
 
 /**
  * Start multi-thread access mode (since by default the library is not 'multi-thread' safe).
  * 
  * @return true if 'multi-thread' safe access is started.
  */ 
-extern "C" bool startMTDSPFactories();
+extern "C" LIBFAUST_API bool startMTDSPFactories();
 
 /**
  * Stop multi-thread access mode.
- * 
  */ 
-extern "C" void stopMTDSPFactories();
+extern "C" LIBFAUST_API void stopMTDSPFactories();
 
 /**
  * Create a Faust DSP factory from a base64 encoded LLVM bitcode string. Note that the library keeps an internal cache of all 
@@ -314,7 +369,7 @@ extern "C" void stopMTDSPFactories();
  *
  * @return the DSP factory on success, otherwise a null pointer.
  */
-llvm_dsp_factory* readDSPFactoryFromBitcode(const std::string& bit_code, const std::string& target, std::string& error_msg, int opt_level = -1);
+LIBFAUST_API llvm_dsp_factory* readDSPFactoryFromBitcode(const std::string& bit_code, const std::string& target, std::string& error_msg, int opt_level = -1);
 
 /**
  * Write a Faust DSP factory into a base64 encoded LLVM bitcode string.
@@ -323,7 +378,7 @@ llvm_dsp_factory* readDSPFactoryFromBitcode(const std::string& bit_code, const s
  *
  * @return the LLVM bitcode as a string.
  */
-std::string writeDSPFactoryToBitcode(llvm_dsp_factory* factory);
+LIBFAUST_API std::string writeDSPFactoryToBitcode(llvm_dsp_factory* factory);
 
 /**
  * Create a Faust DSP factory from a LLVM bitcode file. Note that the library keeps an internal cache of all 
@@ -342,7 +397,7 @@ std::string writeDSPFactoryToBitcode(llvm_dsp_factory* factory);
  * 
  * @return the DSP factory on success, otherwise a null pointer.
  */
-llvm_dsp_factory* readDSPFactoryFromBitcodeFile(const std::string& bit_code_path, const std::string& target, std::string& error_msg, int opt_level = -1);
+LIBFAUST_API llvm_dsp_factory* readDSPFactoryFromBitcodeFile(const std::string& bit_code_path, const std::string& target, std::string& error_msg, int opt_level = -1);
 
 /**
  * Write a Faust DSP factory into a LLVM bitcode file.
@@ -352,7 +407,7 @@ llvm_dsp_factory* readDSPFactoryFromBitcodeFile(const std::string& bit_code_path
  *
  * @return true on success, false on failure.
  */
-bool writeDSPFactoryToBitcodeFile(llvm_dsp_factory* factory, const std::string& bit_code_path);
+LIBFAUST_API bool writeDSPFactoryToBitcodeFile(llvm_dsp_factory* factory, const std::string& bit_code_path);
 
 /**
  * Create a Faust DSP factory from a LLVM IR (textual) string. Note that the library keeps an internal cache of all 
@@ -371,7 +426,7 @@ bool writeDSPFactoryToBitcodeFile(llvm_dsp_factory* factory, const std::string& 
  *
  * @return the DSP factory on success, otherwise a null pointer.
  */
-llvm_dsp_factory* readDSPFactoryFromIR(const std::string& ir_code, const std::string& target, std::string& error_msg, int opt_level = -1);
+LIBFAUST_API llvm_dsp_factory* readDSPFactoryFromIR(const std::string& ir_code, const std::string& target, std::string& error_msg, int opt_level = -1);
 
 /**
  * Write a Faust DSP factory into a LLVM IR (textual) string.
@@ -380,7 +435,7 @@ llvm_dsp_factory* readDSPFactoryFromIR(const std::string& ir_code, const std::st
  *
  * @return the LLVM IR (textual) as a string.
  */
-std::string writeDSPFactoryToIR(llvm_dsp_factory* factory);
+LIBFAUST_API std::string writeDSPFactoryToIR(llvm_dsp_factory* factory);
 
 /**
  * Create a Faust DSP factory from a LLVM IR (textual) file. Note that the library keeps an internal cache of all 
@@ -399,7 +454,7 @@ std::string writeDSPFactoryToIR(llvm_dsp_factory* factory);
  *
  * @return the DSP factory on success, otherwise a null pointer.
  */
-llvm_dsp_factory* readDSPFactoryFromIRFile(const std::string& ir_code_path, const std::string& target, std::string& error_msg, int opt_level = -1);
+LIBFAUST_API llvm_dsp_factory* readDSPFactoryFromIRFile(const std::string& ir_code_path, const std::string& target, std::string& error_msg, int opt_level = -1);
 
 /**
  * Write a Faust DSP factory into a LLVM IR (textual) file.
@@ -409,7 +464,7 @@ llvm_dsp_factory* readDSPFactoryFromIRFile(const std::string& ir_code_path, cons
  *
  * @return true on success, false on failure.
  */
-bool writeDSPFactoryToIRFile(llvm_dsp_factory* factory, const std::string& ir_code_path);
+LIBFAUST_API bool writeDSPFactoryToIRFile(llvm_dsp_factory* factory, const std::string& ir_code_path);
 
 /**
  * Create a Faust DSP factory from a base64 encoded machine code string. Note that the library keeps an internal cache of all 
@@ -425,7 +480,7 @@ bool writeDSPFactoryToIRFile(llvm_dsp_factory* factory, const std::string& ir_co
  *
  * @return the DSP factory on success, otherwise a null pointer.
  */
-llvm_dsp_factory* readDSPFactoryFromMachine(const std::string& machine_code, const std::string& target, std::string& error_msg);
+LIBFAUST_API llvm_dsp_factory* readDSPFactoryFromMachine(const std::string& machine_code, const std::string& target, std::string& error_msg);
 
 /**
  * Write a Faust DSP factory into a base64 encoded machine code string.
@@ -437,7 +492,7 @@ llvm_dsp_factory* readDSPFactoryFromMachine(const std::string& machine_code, con
  *
  * @return the machine code as a string.
  */
-std::string writeDSPFactoryToMachine(llvm_dsp_factory* factory, const std::string& target);
+LIBFAUST_API std::string writeDSPFactoryToMachine(llvm_dsp_factory* factory, const std::string& target);
 
 /**
  * Create a Faust DSP factory from a machine code file. Note that the library keeps an internal cache of all 
@@ -453,7 +508,7 @@ std::string writeDSPFactoryToMachine(llvm_dsp_factory* factory, const std::strin
  *
  * @return the DSP factory on success, otherwise a null pointer.
  */
-llvm_dsp_factory* readDSPFactoryFromMachineFile(const std::string& machine_code_path, const std::string& target, std::string& error_msg);
+LIBFAUST_API llvm_dsp_factory* readDSPFactoryFromMachineFile(const std::string& machine_code_path, const std::string& target, std::string& error_msg);
 
 /**
  * Write a Faust DSP factory into a machine code file.
@@ -466,7 +521,7 @@ llvm_dsp_factory* readDSPFactoryFromMachineFile(const std::string& machine_code_
  *
  * @return true on success, false on failure.
  */
-bool writeDSPFactoryToMachineFile(llvm_dsp_factory* factory, const std::string& machine_code_path, const std::string& target);
+LIBFAUST_API bool writeDSPFactoryToMachineFile(llvm_dsp_factory* factory, const std::string& machine_code_path, const std::string& target);
 
 /**
  * Write a Faust DSP factory into an object code file.
@@ -479,7 +534,7 @@ bool writeDSPFactoryToMachineFile(llvm_dsp_factory* factory, const std::string& 
  *
  * @return true on success, false on failure.
  */
-bool writeDSPFactoryToObjectcodeFile(llvm_dsp_factory* factory, const std::string& object_code_path, const std::string& target);
+LIBFAUST_API bool writeDSPFactoryToObjectcodeFile(llvm_dsp_factory* factory, const std::string& object_code_path, const std::string& target);
 
 /**
  * Call global declarations with the given meta object.
@@ -508,6 +563,17 @@ DEPRECATED(llvm_dsp* createDSPInstance(llvm_dsp_factory* factory));
  * @param dsp - the DSP instance to be deleted.
  */ 
 DEPRECATED(void deleteDSPInstance(llvm_dsp* dsp));
+
+/**
+ * Register a custom foreign function in libfaust,
+ * to be compiled and exported by the host binary running the DSP code,
+ * so that to be usable in the DSP code using the 'ffunction' primitive.
+ * 
+ * Note that all needed functions have to be registered before compiling the DSP code.
+ *
+ * @param function_name - the function name to be available
+ */
+LIBFAUST_API void registerForeignFunction(const std::string& function_name);
 
 /*!
  @}

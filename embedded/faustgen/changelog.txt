@@ -4,10 +4,75 @@
 GRAME - Centre national de creation musicale
 http://www.grame.fr
 ====================================================
-Copyright GRAME (c) 2012-2022
+Copyright GRAME (c) 2012-2024
 
 ----------------------------------------------------
-Version 1.59 - 03/05/2022
+Version 1.73 - 24/12/2024
+
+- distribution with Faust 2.77.3. 
+
+----------------------------------------------------
+Version 1.72 - 18/09/2024
+
+- distribution with Faust 2.75.7. 
+
+----------------------------------------------------
+Version 1.71 - 14/05/2024
+
+- distribution with Faust 2.74.3. Add the multichannels mode 
+
+----------------------------------------------------
+Version 1.70 - 08/05/2024
+
+- distribution with Faust 2.74.2. Correctly save/load control state in faustgen::init
+
+----------------------------------------------------
+Version 1.69 - 31/03/2024
+
+- distribution with Faust 2.72.13
+
+----------------------------------------------------
+Version 1.68 - 05/01/2024
+
+- distribution with Faust 2.70.3
+
+----------------------------------------------------
+Version 1.67 - 11/11/2023
+
+- distribution with Faust 2.69.3
+
+----------------------------------------------------
+Version 1.66 - 14/09/2023
+
+- distribution with Faust 2.68.0
+
+----------------------------------------------------
+Version 1.65 - 16/06/2023
+
+- distribution with Faust 2.60.3
+
+----------------------------------------------------
+Version 1.64 - 14/05/2023
+
+- distribution with Faust 2.59.6
+
+----------------------------------------------------
+Version 1.63 - 17/12/2022
+
+- distribution with Faust 2.54.9
+
+----------------------------------------------------
+Version 1.62 - 01/10/2022
+
+- distribution with Faust 2.50.6
+
+----------------------------------------------------
+Version 1.61 - 17/06/2022
+
+- compiles on Apple M1
+
+----------------------------------------------------
+Version 1.60 - 03/05/2022
 
 - use of the new 'shortname' controller access model
 

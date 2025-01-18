@@ -16,54 +16,51 @@ Tutorials on how to make
 physical models of musical instruments can be found
 [here](https://ccrma.stanford.edu/~rmichon/faustTutorials/#making-physical-models-of-musical-instruments-with-faust).
 
-## Build/Installation
+## Build/Install (Linux & MacOS)
 
 `mesh2faust` relies on [Vega FEM](http://run.usc.edu/vega/) to turn the
 provided volumetric mesh into a 3D mesh and to carry out the finite element
 analysis on it. A lightweight adapted version of this library is part of this
 repository.
 
-Vega itself relies on some libraries that must be installed on your system in
-order to compile `mesh2faust`. This section walks you through the different
-steps to build and install `mesh2faust` on your system.
+This section walks you through the different steps to build and install `mesh2faust` on your system.
 
-### Linux
+- Install the Eigen library:
+  - Linux: `sudo apt install libeigen3-dev`
+  - MacOS: `brew install eigen`
+- Build and make (from this directory):
+  - `mkdir build && cd build`
+  - `cmake .. && make`
+- To install, simply copy the executable to your desired binary location:
+  - `sudo cp mesh2faust /usr/local/bin/`
 
-* First, install the Intel MKL Library (<https://software.intel.com/en-us/intel-mkl>).
-Unfortunately, this library is not open source (but it's free), so you wont find
-it in your usual package manager.
-* Get `libarpack` with your package manager (`libarpack2-dev` in Ubuntu).
-* Go in `/vega/Makefile-headers/` and run "`selectLinux`", this will update the
-dynamic link of `Makefile-header` to the right Makefile for your system.
-* You might have to make some adjustments in
-`/vega/Makefile-headers/Makefile-header.linux` in the "MKL Paths" section
-(Intel tends to change the organization of this lib pretty often).
-* Run: `make`
-* Run: `sudo make install`
-* NOTE: Additional adjustments might have to be made to `Makefile-header.linux`
-(compilation was only tested on Linux Mint)
+### Using as a static library
 
-### OSX
+`mesh2faust` can also be used as a static library.
 
-* First, install the Intel MKL Library (<https://software.intel.com/en-us/intel-mkl>).
-Unfortunately, this library is not open source (but it's free), so you wont find
-it in your usual package manager.
-* Get `arpack`. The `mesh2faust` makefiles were configured to work with the MacPort
-version of `arpack`, so we advise you to use this package manager to get it
-(e.g., `port install arpack`).
-* Go in `/vega/Makefile-headers/` and run "`selectMacOSX`", this will update the
-dynamic link of `Makefile-header` to the right Makefile for your system.
-* You might have to make some adjustments in
-`/vega/Makefile-headers/Makefile-header.osx` in the "MKL Paths" and "ARPACK" sections
-depending on how you installed these 2 packages.
-* Run: `make`
-* Run: `sudo make install`
-* NOTE: Additional adjustments might have to be made to `Makefile-header.osx`
-(that's where you want to look at if you get some linker errors, etc.)
+Here is an example `CMakeLists.txt` section to build and link the `mesh2faust` static library, without building the `mesh2faust` executable:
 
-### Windows
+```cmake
+# Disable building the mesh2faust executable.
+set(INCLUDE_EXECUTABLE OFF CACHE STRING "Build the mesh2faust executable" FORCE)
+# Assuming you already have the Faust source code under `./lib/faust`:
+set(Mesh2FaustDir ${CMAKE_CURRENT_SOURCE_DIR}/lib/faust/tools/physicalModeling/mesh2faust)
 
-Ever thought about using Linux? We heard it's great! :)
+add_subdirectory(${Mesh2FaustDir})
+include_directories(... ${Mesh2FaustDir}/src)
+target_link_libraries(${PROJECT_NAME} PRIVATE ... mesh2faust)
+```
+
+In your project source code, you can then call e.g.
+
+```cpp
+#include "mesh2faust.h"
+...
+
+// Call the main `mesh2faust` method using all default arguments.
+// (All `mesh2faust` code is under the `m2f` namespace.)
+std::string dsp = m2f::mesh2faust();
+```
 
 ## Using `mesh2faust`
 
@@ -104,9 +101,9 @@ current folder, implementing the modal physical model corresponding to
 `3dObject.obj`, and using the default parameters of `mesh2faust`.
 
 The complexity of the object to analyze (mostly determined by its number of
-  vertices) will greatly impact the duration of this process. For complex objects
-  (e.g., > 3E4 vertices), this can easily take more than 30 mins on a "regular"
-  laptop.
+vertices) will greatly impact the duration of this process. For complex objects
+(e.g., > 3E4 vertices), this can easily take more than 30 mins on a "regular"
+laptop.
 
 ### Physical Model Name
 
@@ -122,20 +119,20 @@ will generate a model called `toneBar` saved in a file named `toneBar.lib`.
 ### Material Properties
 
 The material of the object to turn into a physical model can be configured by
-providing its Young's modulus (in N/m^2), Poisson's ratio (no unit), and
-density (in kg/m^3), in that order, using the `--material` flag as follows:
+providing its Young's modulus (in N/m^2), Poisson's ratio (no unit),
+density (in kg/m^3), and Rayleigh $\alpha$/$\beta$ damping coefficients (no unit), in that order, using the `--material` flag as follows:
 
 ```
-mesh2faust --material 70E9 0.35 2700 --infile 3dObject.obj
+mesh2faust --material 2E11 0.29 7850 5 3E-8 --infile 3dObject.obj
 ```
 
-These values correspond to the default material (aluminum) used by `mesh2faust`,
-so providing `--material 70E9 0.35 2700` will not change anything.
+These values correspond to the default material (steel) used by `mesh2faust`,
+so providing `--material 2E11 0.29 7850 5 3E-8` will not change anything.
 
 ### Excitation Positions
 
 After the finite element analysis, the number of excitation position (the
-  place where energy is introduced) in the
+place where energy is introduced) in the
 physical model is the same as the number of vertices in the provided volumetric
 mesh. Thus, the more vertices, the more excitation positions. The gain of each
 mode in the model is different for each excitation position, so the amount of
@@ -160,7 +157,7 @@ mesh2faust --infile 3dObject.obj --expos 236 589
 
 will generate a physical model with 2 excitation positions corresponding to
 vertex ID 236 and 589.
-[Vertex IDs can be easily retrieved using meshlab.](https://ccrma.stanford.edu/~rmichon/faustTutorials/#making-physical-models-of-musical-instruments-with-faust)     
+[Vertex IDs can be easily retrieved using meshlab.](https://ccrma.stanford.edu/~rmichon/faustTutorials/#making-physical-models-of-musical-instruments-with-faust)
 
 ### Limiting the Number of Modes
 
@@ -170,20 +167,20 @@ human hearing range (or above Nyquist) or too many (the more modes in the
 model, the more computation). Several options allow to tune mode selection
 in `mesh2faust` and are presented in this section.
 
-* `--nfemmodes` controls the number of modes computed during the finite
-element analysis. By default, 200 modes are computed (unless the provided mesh
-has less than 200 vertices, in which case the number of computed modes will be
-the same as the number of vertices in the mesh). Modes are computed by frequency,
-so in this case, "200" corresponds to the first 200 modes. The more modes will
-be computed during the analysis, the more time it will take.
-* `--minmode` sets the minimum frequency of the lowest mode to be synthesized.
-Any mode below this frequency will be discarded (default is 20Hz).  
-* `--maxmode` sets the maximum frequency of the highest mode to be synthesized.
-Any mode above this frequency will be discarded (default is 10KHz).
-* `--nsynthmodes` controls the number of modes to be synthesized (default is 20).
-Modes are selected by frequency starting at `--minmode`. `--nsynthmodes` is
-adjusted (clipped) to the number of modes available between `--minmode` and
-`-maxmode`.
+- `--nfemmodes` controls the number of modes computed during the finite
+  element analysis. By default, 200 modes are computed (unless the provided mesh
+  has less than 200 vertices, in which case the number of computed modes will be
+  the same as the number of vertices in the mesh). Modes are computed by frequency,
+  so in this case, "200" corresponds to the first 200 modes. The more modes will
+  be computed during the analysis, the more time it will take.
+- `--minmode` sets the minimum frequency of the lowest mode to be synthesized.
+  Any mode below this frequency will be discarded (default is 20Hz).
+- `--maxmode` sets the maximum frequency of the highest mode to be synthesized.
+  Any mode above this frequency will be discarded (default is 10KHz).
+- `--nsynthmodes` controls the number of modes to be synthesized (default is 20).
+  Modes are selected by frequency starting at `--minmode`. `--nsynthmodes` is
+  adjusted (clipped) to the number of modes available between `--minmode` and
+  `-maxmode`.
 
 Typically, `-nfemmodes` should be greater than `--nsynthmodes` since some of the
 modes computed during the finite element analysis will be discarded depending
@@ -204,15 +201,12 @@ model where mode frequencies are dynamically calculated in function of a given
 fundamental frequency (mode 0) simply by providing the `--freqcontrol` flag.
 
 Obviously, this will increase the amount of computation of the model and change
-its number of arguments (see [Using Generated Models](#using-generated-models)).
+its number of arguments (see [Using the Generated Models](#using-the-generated-models)).
 
 ### Debugging
 
 "Debug" mode can be activated simply by providing the `--debug` flag when
-calling `mesh2faust`. This will just make the process more verbose.
-
-Additionally, `--showfreqs` will display the frequency of the computed modes
-in the terminal.
+calling `mesh2faust`. This will make the process more verbose.
 
 ## Using the Generated Models
 
@@ -223,7 +217,7 @@ Faust functions implementing the physical models generated by `mesh2faust` look
 like:
 
 ```
-_ : modalModel(exPos,t60,t60DecayRatio,t60DecaySlope) : _
+_ : modalModel(exPos,t60Scale) : _
 ```
 
 The single audio input of the function can be used to provide an excitation
@@ -235,39 +229,35 @@ signal to the model.
 model has 5 excitation positions (e.g., configured using
 [`--expos`](#excitation-positions)), the range of `exPos` will be 0-4 .
 
-### Resonance Duration (t60)
+### Resonance Duration (T60)
 
-`mesh2faust` currently doesn't allow to the estimate the time of resonance of
-each mode (t60) in function of each other. While this feature will be added
-in a future version, the t60 of the modes of the generated models can be
-configured with 3 different parameters: `t60`, `t60DecayRatio`, and
-`t60DecaySlope` where:
-
-* `t60`: resonance duration of the lowest mode in seconds.
-* `t60DecayRatio`: decay of modes t60s in function of their frequency. The
-range of this parameter is 0-1. If 1, the t60 of the highest mode will be
-close to 0 second.
-* `t60DecaySlope`: controls the slope of the function used to compute the decay
-of modes t60 in function of their frequency. It essentially controls the power
-of this function. So if 1, decay will be linear, if 2, decay will be a power of
-2, etc.
+`mesh2faust` uses Rayleigh Damping to estimate the T60 resonance duration of
+each mode (following the method outlined in section 2 of
+[this paper](https://www.cs.cornell.edu/~djames/papers/DyRT.pdf)).
+Additionally, the model function accepts a `t60Scale` parameter as its last
+argument. All estimated T60 decay times are multiplied by this value.
 
 ### Dynamic F0 Model
 
-The [Making a Transposable Model](making-a-transposable-model) section shows how to
+The [Making a Transposable Model](#making-a-transposable-model) section shows how to
 make a model with a dynamic fundamental frequency. Models generated using this
 option look like:
 
 ```
-_ : modalModel(freq,exPos,t60,t60DecayRatio,t60DecaySlope) : _
+_ : modalModel(freq,exPos,t60Scale) : _
 ```
 
 Where `freq` is the fundamental frequency ("f0") of the model.
 
 ## Extra Help
 
-Feel free to contact Romain Michon if you need extra help:
-rmichon AT ccrma DOT stanford DOT edu.
+Feel free to contact Karl Hiner if you need extra help:
+karl DOT hiner AT gmail DOT com.
+
+# TODO
+
+* Mode selection by critical bands should be reactivated and added as an option.
+* Automatic reflectance model should be added as an option.
 
 ## License
 

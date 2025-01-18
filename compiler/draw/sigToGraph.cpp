@@ -4,16 +4,16 @@
  Copyright (C) 2003-2018 GRAME, Centre National de Creation Musicale
  ---------------------------------------------------------------------
  This program is free software; you can redistribute it and/or modify
- it under the terms of the GNU General Public License as published by
- the Free Software Foundation; either version 2 of the License, or
+ it under the terms of the GNU Lesser General Public License as published by
+ the Free Software Foundation; either version 2.1 of the License, or
  (at your option) any later version.
 
  This program is distributed in the hope that it will be useful,
  but WITHOUT ANY WARRANTY; without even the implied warranty of
  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
+ GNU Lesser General Public License for more details.
 
- You should have received a copy of the GNU General Public License
+ You should have received a copy of the GNU Lesser General Public License
  along with this program; if not, write to the Free Software
  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -22,12 +22,14 @@
 #include <stdio.h>
 
 #include <iostream>
+#include <regex>
 #include <set>
 #include <sstream>
 #include <string>
 #include <vector>
 
 #include "exception.hh"
+#include "interval.hh"
 #include "sigToGraph.hh"
 #include "signals.hh"
 #include "sigtype.hh"
@@ -71,8 +73,8 @@ void sigToGraph(Tree L, ostream& fout)
 static void recdraw(Tree sig, set<Tree>& drawn, ostream& fout)
 {
     // cerr << ++gGlobal->TABBER << "ENTER REC DRAW OF " << sig << "$" << *sig << endl;
-    vector<Tree> subsig;
-    int          n;
+    tvec subsig;
+    int  n;
 
     if (drawn.count(sig) == 0) {
         drawn.insert(sig);
@@ -83,8 +85,8 @@ static void recdraw(Tree sig, set<Tree>& drawn, ostream& fout)
             } while (isList(sig));
         } else {
             // draw the node
-            fout << 'S' << sig << "[label=\"" << sigLabel(sig) << "\"" << nodeattr(getCertifiedSigType(sig)) << "];"
-                 << endl;
+            fout << 'S' << sig << "[label=\"" << sigLabel(sig) << "\""
+                 << nodeattr(getCertifiedSigType(sig)) << "];" << endl;
 
             // draw the subsignals
             n = getSubSignals(sig, subsig);
@@ -92,8 +94,7 @@ static void recdraw(Tree sig, set<Tree>& drawn, ostream& fout)
                 if (n == 1 && isList(subsig[0])) {
                     Tree id, body;
                     faustassert(isRec(sig, id, body));
-                    if (!isRec(sig, id, body)) {
-                    }
+                    if (!isRec(sig, id, body)) {}
                     // special recursion case, recreate a vector of subsignals instead of the
                     // list provided by getSubSignal
                     Tree L = subsig[0];
@@ -108,8 +109,8 @@ static void recdraw(Tree sig, set<Tree>& drawn, ostream& fout)
 
                 for (int i = 0; i < n; i++) {
                     recdraw(subsig[i], drawn, fout);
-                    fout << 'S' << subsig[i] << " -> " << 'S' << sig << "[" << edgeattr(getCertifiedSigType(subsig[i]))
-                         << "];" << endl;
+                    fout << 'S' << subsig[i] << " -> " << 'S' << sig << "["
+                         << edgeattr(getCertifiedSigType(subsig[i])) << "];" << endl;
                 }
             }
         }
@@ -141,7 +142,7 @@ static string edgeattr(Type t)
 {
     string sout(commonAttr(t));
     sout += " label =\"";
-    sout += t->getInterval().toString();
+    sout += t->getInterval().to_string();
     sout += ", ";
     sout += t->getRes().toString();
     sout += "\"";
@@ -169,7 +170,8 @@ static string nodeattr(Type t)
 /**
  * translate signal binary operations into strings
  */
-static const char* binopname[] = {"+", "-", "*", "/", "%", "<<", ">>", ">", "<", ">=", "<=", "==", "!=", "&", "|", "^"};
+static const char* binopname[] = {"+", "-",  "*",  "/",  "%",  "<<", ">>", ">",
+                                  "<", ">=", "<=", "==", "!=", "&",  "|",  "^"};
 
 /**
  * return the label of a signal as a string
@@ -178,7 +180,7 @@ static string sigLabel(Tree sig)
 {
     int    i;
     double r;
-    Tree   x, y, z, c, type, name, file, ff, largs, id, le, sel, var, label;
+    Tree   size, gen, wi, ws, tbl, ri, x, y, z, c, type, name, file, ff, largs, le, sel, var, label;
 
     xtended* p = (xtended*)getUserData(sig);
 
@@ -215,11 +217,9 @@ static string sigLabel(Tree sig)
         fout << *name;
     }
 
-    else if (isSigTable(sig, id, x, y)) {
-        fout << "table:" << id;
-    } else if (isSigWRTbl(sig, id, x, y, z)) {
-        fout << "write:" << id;
-    } else if (isSigRDTbl(sig, x, y)) {
+    else if (isSigWRTbl(sig, size, gen, wi, ws)) {
+        fout << "write:" << sig;
+    } else if (isSigRDTbl(sig, tbl, ri)) {
         fout << "read";
     }
 
@@ -239,6 +239,8 @@ static string sigLabel(Tree sig)
 
     else if (isSigIntCast(sig, x)) {
         fout << "int";
+    } else if (isSigBitCast(sig, x)) {
+        fout << "bit";
     } else if (isSigFloatCast(sig, x)) {
         fout << "float";
     }
@@ -286,11 +288,15 @@ static string sigLabel(Tree sig)
         fout << "highest";
     }
 
+    else if (isSigRegister(sig, &i, x)) {
+        fout << "register " << i;  // for FPGA Retiming
+    }
+
     else {
         stringstream error;
         error << "ERROR : sigToGraph.cpp, unrecognized signal : " << *sig << endl;
         throw faustexception(error.str());
     }
 
-    return fout.str();
+    return std::regex_replace(fout.str(), std::regex("\""), "\\\"");
 }

@@ -46,10 +46,6 @@
 
 #ifdef OSCCTRL
 #include "faust/gui/OSCUI.h"
-static void osc_compute_callback(void* arg)
-{
-    static_cast<OSCUI*>(arg)->endBundle();
-}
 #endif
 
 #ifdef HTTPCTRL
@@ -111,18 +107,19 @@ int main(int argc, char* argv[])
     char rcfilename[256];
     char* home = getenv("HOME");
     bool midi_sync = false;
+    bool midi = false;
     int nvoices = 0;
     bool control = true;
     
     mydsp* tmp_dsp = new mydsp();
-    MidiMeta::analyse(tmp_dsp, midi_sync, nvoices);
+    MidiMeta::analyse(tmp_dsp, midi, midi_sync, nvoices);
     delete tmp_dsp;
     
     snprintf(name, 256, "%s", basename(argv[0]));
     snprintf(rcfilename, 256, "%s/.%src", home, name);
     
     if (isopt(argv, "-h")) {
-        cout << "prog [--nvoices <val>] [--control <0/1>] [--group <0/1>]\n";
+        cout << argv[0] << " [--nvoices <val>] [--control <0/1>] [--group <0/1>]\n";
         exit(1);
     }
     
@@ -180,15 +177,18 @@ int main(int argc, char* argv[])
     
     QTGUI* interface = new QTGUI();
     FUI finterface;
-    
+
 #ifdef PRESETUI
-    PresetUI pinterface(interface, string(PRESETDIR) + string(name) + ((nvoices > 0) ? "_poly" : ""));
+    string preset_dir = PresetUI::getPresetDir();
+    cout << "Final preset_dir: " << preset_dir << endl;
+    PresetUI::tryCreateDirectory(preset_dir);
+    PresetUI pinterface(interface, preset_dir + "/" + ((nvoices > 0) ? "poly_" : ""));
     DSP->buildUserInterface(&pinterface);
 #else
     DSP->buildUserInterface(interface);
     DSP->buildUserInterface(&finterface);
 #endif
-    
+
 #ifdef HTTPCTRL
     httpdUI httpdinterface(name, DSP->getNumInputs(), DSP->getNumOutputs(), argc, argv);
     DSP->buildUserInterface(&httpdinterface);
@@ -216,7 +216,6 @@ int main(int argc, char* argv[])
     OSCUI oscinterface(name, argc, argv);
     DSP->buildUserInterface(&oscinterface);
     cout << "OSC is on" << endl;
-    audio.addControlCallback(osc_compute_callback, &oscinterface);
 #endif
     
 #ifdef MIDICTRL

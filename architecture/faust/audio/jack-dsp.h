@@ -52,7 +52,7 @@ class jackaudio : public audio {
     
     protected:
         
-        dsp* fDSP;              // FAUST DSP
+        ::dsp* fDSP;            // FAUST DSP
         jack_client_t* fClient; // JACK client
         
         std::vector<jack_port_t*> fInputPorts;   // JACK input ports
@@ -168,7 +168,7 @@ class jackaudio : public audio {
     #endif
         
         // JACK callbacks
-        virtual int	process(jack_nframes_t nframes)
+        virtual int process(jack_nframes_t nframes)
         {
             AVOIDDENORMALS;
             
@@ -192,7 +192,7 @@ class jackaudio : public audio {
     public:
         
         jackaudio(bool auto_connect = true)
-        : fDSP(0), fClient(0), fAutoConnect(auto_connect)
+        : fDSP(nullptr), fClient(nullptr), fAutoConnect(auto_connect)
         {}
         
         virtual ~jackaudio()
@@ -210,7 +210,7 @@ class jackaudio : public audio {
             }
         }
         
-        virtual bool init(const char* name, dsp* dsp)
+        virtual bool init(const char* name, ::dsp* dsp)
         {
             if (initAux(name)) {
                 if (dsp) { setDsp(dsp); }
@@ -319,7 +319,7 @@ class jackaudio : public audio {
             }
         }
         
-        virtual void setDsp(dsp* dsp)
+        virtual void setDsp(::dsp* dsp)
         {
             fDSP = dsp;
             for (int i = 0; i < fDSP->getNumInputs(); i++) {
@@ -480,7 +480,7 @@ class jackaudio_midi : public jackaudio, public jack_midi {
                 fOutChannel[i] = (float*)jack_port_get_buffer(fOutputPorts[i], nframes);
             }
             
-            // By convention timestamp of -1 means 'no timestamp conversion' : events already have a timestamp espressed in frames
+            // By convention timestamp of -1 means 'no timestamp conversion', events already have a timestamp expressed in frames
             fDSP->compute(-1, nframes, reinterpret_cast<FAUSTFLOAT**>(fInChannel), reinterpret_cast<FAUSTFLOAT**>(fOutChannel));
         }
     
@@ -508,7 +508,7 @@ class jackaudio_midi : public jackaudio, public jack_midi {
         virtual ~jackaudio_midi()
         {}
         
-        virtual bool init(const char* name, dsp* dsp)
+        virtual bool init(const char* name, ::dsp* dsp)
         {
             if (jackaudio::initAux(name)) {
                 if (dsp) { setDsp(dsp); }

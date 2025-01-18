@@ -81,6 +81,16 @@ static void splitTarget(const string& target, string& triple, string& cpu)
 
 struct DynamicDSP {
     
+    bool hasCompileOption(const string& compile_options, const string& option)
+    {
+        istringstream iss(compile_options);
+        string token;
+        while (std::getline(iss, token, ' ')) {
+            if (token == option) return true;
+        }
+        return false;
+    }
+    
     dsp_factory* fFactory = nullptr;
     dsp* fDSP = nullptr;
     MidiUI* fMIDIInterface = nullptr;
@@ -109,6 +119,7 @@ struct DynamicDSP {
         char rcfilename[256];
         char* home = getenv("HOME");
         int nvoices = 0;
+        bool is_midi = false;
         bool midi_sync = false;
         string error_msg;
         
@@ -119,13 +130,11 @@ struct DynamicDSP {
         
         is_llvm = isopt(argv, "-llvm");
         bool is_interp = isopt(argv, "-interp");
-        bool is_midi = isopt(argv, "-midi");
         bool is_osc = isopt(argv, "-osc");
         bool is_all = isopt(argv, "-all");
         bool is_generic = isopt(argv, "-generic");
         bool is_httpd = isopt(argv, "-httpd");
         bool is_resample = isopt(argv, "-resample");
-        bool is_double = isopt(argv, "-double");
         
         if (isopt(argv, "-h") || isopt(argv, "-help") || (!is_llvm && !is_interp)) {
         #ifdef JACK
@@ -163,7 +172,12 @@ struct DynamicDSP {
                 || (string(argv[i]) == "-httpd")
                 || (string(argv[i]) == "-resample")) {
                 continue;
-            } else if (string(argv[i]) == "-nvoices") {
+            } else if ((string(argv[i]) == "-nvoices")
+                       || (string(argv[i]) == "-port")
+                       || (string(argv[i]) == "-outport")
+                       || (string(argv[i]) == "-errport")
+                       || (string(argv[i]) == "-desthost")
+                       || (string(argv[i]) == "-xmit")) {
                 i++;
                 continue;
             }
@@ -226,7 +240,12 @@ struct DynamicDSP {
         }
         
         cout << "getCompileOptions " << fFactory->getCompileOptions() << endl;
+        bool is_double = hasCompileOption(fFactory->getCompileOptions(), "-double");
+    
+        cout << "getLibraryList" << endl;
         printList(fFactory->getLibraryList());
+    
+        cout << "getIncludePathnames" << endl;
         printList(fFactory->getIncludePathnames());
         
         fDSP = fFactory->createDSPInstance();
@@ -243,9 +262,12 @@ struct DynamicDSP {
         cout << "getName " << fFactory->getName() << endl;
         cout << "getSHAKey " << fFactory->getSHAKey() << endl;
         
-        // Before reading the -nvoices parameter
-        MidiMeta::analyse(fDSP, midi_sync, nvoices);
+        // Before reading the -nvoices and -midi parameters
+        MidiMeta::analyse(fDSP, is_midi, midi_sync, nvoices);
+    
+        // Possibly update the state read in "options" with command line parameters
         nvoices = lopt(argv, "-nvoices", nvoices);
+        is_midi = isopt(argv, "-midi") || is_midi;
         
         if (nvoices > 0) {
             cout << "Starting polyphonic mode 'nvoices' : " << nvoices << " and 'all' : " << is_all << endl;
@@ -257,10 +279,6 @@ struct DynamicDSP {
         
         fFInterface = new FUI();
         fDSP->buildUserInterface(fFInterface);
-        
-        if (!fAudio.init(filename, fDSP)) {
-            throw bad_alloc();
-        }
         
         // After audio init to get SR
         fSoundinterface = new SoundUI("", ((is_resample) ? fAudio.getSampleRate() : -1), nullptr, is_double);
@@ -284,6 +302,10 @@ struct DynamicDSP {
             fMIDIInterface = new MidiUI(fMidiHandler);
         #endif
             fDSP->buildUserInterface(fMIDIInterface);
+        }
+     
+        if (!fAudio.init(filename, fDSP)) {
+            throw bad_alloc();
         }
         
         // State (after UI construction)

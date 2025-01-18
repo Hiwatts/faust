@@ -2,18 +2,19 @@
  ************************************************************************
     FAUST compiler
     Copyright (C) 2003-2018 GRAME, Centre National de Creation Musicale
+    Copyright (C) 2023-2023 INRIA
     ---------------------------------------------------------------------
     This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation; either version 2.1 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+    GNU Lesser General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
+    You should have received a copy of the GNU Lesser General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -21,7 +22,10 @@
 
 #include "labels.hh"
 #include "compatibility.hh"
+#include "description.hh"
 #include "global.hh"
+
+using namespace std;
 
 //=========================== PATHNAME ===============================
 
@@ -35,32 +39,31 @@
  * <rpath> = (<gname> '/')+
  * <gname> = ".." | "." | <gtype> <name>
  * <gtype> = "h:" | "H:" | "v:" | V:" | "t:" | "T:"
- *
  */
 
-Tree pathRoot()
+static Tree pathRoot()
 {
     return tree(gGlobal->PATHROOT);
 }
-bool isPathRoot(Tree t)
+static bool isPathRoot(Tree t)
 {
     return isTree(t, gGlobal->PATHROOT);
 }
 
-Tree pathParent()
+static Tree pathParent()
 {
     return tree(gGlobal->PATHPARENT);
 }
-bool isPathParent(Tree t)
+static bool isPathParent(Tree t)
 {
     return isTree(t, gGlobal->PATHPARENT);
 }
 
-Tree pathCurrent()
+static Tree pathCurrent()
 {
     return tree(gGlobal->PATHCURRENT);
 }
-bool isPathCurrent(Tree t)
+static bool isPathCurrent(Tree t)
 {
     return isTree(t, gGlobal->PATHCURRENT);
 }
@@ -115,7 +118,9 @@ static Tree label2path(const char* label)
             s.push_back(label[i]);
             i++;
         }
-        if (label[i] == '/') i++;
+        if (label[i] == '/') {
+            i++;
+        }
         return cons(encodeName(g, s), label2path(&label[i]));
 
     } else {
@@ -160,13 +165,17 @@ static Tree normalizeLabel(Tree label, Tree path)
     if (isList(label)) {
         return cons(label, path);
     } else {
-        Sym  s      = 0;
+        Sym  s;
         bool is_sym = isSym(label->node(), &s);
         faustassert(is_sym);
         return concatPath(label2path(name(s)), path);
     }
 }
 
+// Normalize a path. For example, assuming i=3, "h:bidule/foo%i"
+// is transformed into: cons[foo3,cons[cons[1,bidule],nil]]
+// Where 0 indicates v, 1 indicates h, and 2 indicates t.
+// Metadata are not removed !
 Tree normalizePath(Tree path)
 {
     // cout << "Normalize Path [[" << *path << "]]" << endl;
@@ -178,4 +187,60 @@ Tree normalizePath(Tree path)
     }
     // cout << "              -> [[" << *npath << "]]" << endl;
     return npath;
+}
+
+// SuperNormalize a path by removing vht indications.
+// For example, assuming i=3, "h:bidule/foo%i"
+// is transformed into: cons[foo3,cons[bidule,nil]]
+// Where 0 indicates v, 1 indicates h, and 2 indicates t.
+// Metadata are not removed !
+Tree superNormalizePath(Tree path)
+{
+    Tree npath = normalizePath(path);
+    Tree spath;
+
+    // std::cout << "SuperNormalize Path [[" << *path << "]]" << endl;
+    if (isNil(npath)) {
+        spath = npath;
+    } else {
+        Tree head = hd(npath);
+        if (isList(head)) {
+            std::string fulllabel = tree2str(tl(head));
+            std::string label     = removeMetadata(fulllabel);
+            spath                 = cons(tree(label), superNormalizePath(tl(npath)));
+        } else {
+            std::string fulllabel = tree2str(head);
+            std::string label     = removeMetadata(fulllabel);
+            spath                 = cons(tree(label), superNormalizePath(tl(npath)));
+        }
+    }
+    // std::cout << "SuperNormalizePath " << *path << " -> " << *spath << std::endl;
+    return spath;
+}
+
+/**
+ * @brief Test if a label path is part of a group.
+ * @param gpath the group path
+ * @param lpath the label path
+ * @param rpath the remaining path if there is a match
+ * @return true if the label path is part of the group path
+ */
+bool matchGroup(Tree gpath, Tree lpath, Tree& rpath)
+{
+    if (gpath == lpath) {
+        rpath = gGlobal->nil;
+        return true;
+    } else if (isList(lpath)) {
+        Tree head = hd(lpath);
+        Tree tail = tl(lpath);
+        Tree rest;
+        if (matchGroup(gpath, tail, rest)) {
+            rpath = cons(head, rest);
+            return true;
+        } else {
+            return false;
+        }
+    } else {
+        return false;
+    }
 }

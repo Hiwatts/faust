@@ -29,7 +29,7 @@ LOG="/dev/null"
 OSC_CFLAGS=""
 OSC_LIBFLAGS=""
 JACK_LIBRARIES_FLAGS="\`pkg-config --cflags --libs jack sndfile\`"
-ALSA_LIBRARIES_FLAGS="\`pkg-config --cflags --libs alsa\` -lpthread"
+ALSA_LIBRARIES_FLAGS="\`pkg-config --cflags --libs alsa\` -pthread"
 COREAUDIO_LIBRARIES_FLAGS="\`pkg-config --cflags --static --libs sndfile\` -framework CoreAudio -framework AudioUnit -framework CoreServices -framework CoreMIDI -framework CoreFoundation"
 # TODO: missing rtaudio, portaudio, etc.
 
@@ -38,12 +38,8 @@ PLATFORM=$(uname)
 
 echoHelp ()
 {
-    if [ $p != "-help" ] && [ $p != "-h" ]; then
-        echo "$p wrong argument"
-        echo ""
-    fi
-    usage faust2nodejs "[driver] [options] <file.dsp>"
-    echo "Generate Faust-based nodejs native addons. The generated addons can embed most of the audio engines supported by Faust: ALSA, JACK, CoreAudio, RtAudio, PortAudio, etc. Since faust2nodejs essentially acts as a wrapper to faust2api, it offers the same features than this system (MIDI and OSC suport, polyphony, separate effect file, etc.)."
+    usage faust2nodejs "[driver] [Faust options] <file.dsp>"
+    echo "Generate Faust-based nodejs native addons. The generated addons can embed most of the audio engines supported by Faust: ALSA, JACK, CoreAudio, RtAudio, PortAudio, etc. Since faust2nodejs essentially acts as a wrapper to faust2api, it offers the same features than this system (MIDI and OSC support, polyphony, separate effect file, etc.)."
     echo
     echo "The following drivers are available: -coreaudio // -alsa // -jack // -portaudio // -rtaudio // -dummy. For example, to create a native nodejs addon with a JACK audio engine, run: faust2nodjs -jack faustFile.dsp"
     echo
@@ -52,10 +48,18 @@ echoHelp ()
     options -osc -midi -soundfile
     option "-nvoices <num>"
     option "-effect <effect.dsp>"
-    option -source "generates the source of the addon without compiling it."
-    option "-electronv <VERSION>" "allows to specify the current version of electron if generating an addon for this framework."
-    option -debug "prints compilation output."
+    option -source "generates the source of the addon without compiling it"
+    option "-electronv <VERSION>" "allows to specify the current version of electron if generating an addon for this framework"
+    option -debug "prints compilation output"
+    option "Faust options"
+    exit
 }
+
+if [ "$#" -eq 0 ]; then
+    echo 'Please, provide a Faust file to process !'
+    echo ''
+    echoHelp
+fi
 
 # dispatch command arguments
 while [ $1 ]
@@ -63,7 +67,6 @@ do
     p=$1
     if [ $p = "-help" ] || [ $p = "-h" ]; then
         echoHelp
-    exit
     elif [[ -f "$p" ]]; then
         FILE="$p"
     elif [ $p = "-coreaudio" ] || [ $p = "-alsa" ] || [ $p = "-jack" ] || [ $p = "-portaudio" ] || [ $p = "-rtaudio" ] || [ $p = "-dummy" ] ; then
@@ -78,7 +81,7 @@ do
     elif [ "$p" = "-osc" ]; then
         OSC="-osc"
         OSC_CFLAGS="-DOSCCTR"
-        OSC_LIBFLAGS="-lOSCFaust -lpthread"
+        OSC_LIBFLAGS="-lOSCFaust -pthread"
     elif [ "$p" = "-debug" ]; then
         LOG="/dev/stdout"
     elif [ "$p" = "-source" ]; then
@@ -98,11 +101,6 @@ do
     fi
 shift
 done
-
-if [ -z $FILE ]; then
-    echo "Please, provide a Faust file to process"
-    exit 1
-fi
 
 NODE_NAME="${FILE%.dsp}"
 NODE_FOLDER=$NODE_NAME"-faustnode"
@@ -124,7 +122,7 @@ cp "$FAUSTARCH/nodejs/README.md" .
 # Customizing configuration file
 # TODO: for now only ported compilation flags for alsa and JACK: missing
 # portaudio, rtaudio, and coreaudio
-if [ $DRIVER = "-jack" ]; then
+if [ "$DRIVER" = "-jack" ]; then
     if [ $PLATFORM = "Darwin" ]; then
         sed -i "" "s/__CFLAGS__/$MYGCCFLAGS $FAUSTTOOLSFLAGS $OMP $OSC_CFLAGS/g" binding.gyp
         sed -i "" "s/__LIBFLAGS__/$JACK_LIBRARIES_FLAGS $OSC_LIBFLAGS/g" binding.gyp
@@ -132,10 +130,10 @@ if [ $DRIVER = "-jack" ]; then
         sed -i "s/__CFLAGS__/$MYGCCFLAGS $FAUSTTOOLSFLAGS $OMP $OSC_CFLAGS/g" binding.gyp
         sed -i "s/__LIBFLAGS__/$JACK_LIBRARIES_FLAGS $OSC_LIBFLAGS/g" binding.gyp
     fi
-elif [ $DRIVER = "-alsa" ]; then
+elif [ "$DRIVER" = "-alsa" ]; then
     sed -i "s/__CFLAGS__/$MYGCCFLAGS $FAUSTTOOLSFLAGS $OMP $OSC_CFLAGS/g" binding.gyp
     sed -i "s/__LIBFLAGS__/$JACK_LIBRARIES_FLAGS $OSC_LIBFLAGS/g" binding.gyp
-elif [ $DRIVER = "-coreaudio" ]; then
+elif [ "$DRIVER" = "-coreaudio" ]; then
     sed -i "" "s/__CFLAGS__/$MYGCCFLAGS $FAUSTTOOLSFLAGS $OMP $OSC_CFLAGS/g" binding.gyp
     sed -i "" "s/__LIBFLAGS__/$COREAUDIO_LIBRARIES_FLAGS $OSC_LIBFLAGS/g" binding.gyp
 fi

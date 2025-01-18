@@ -4,16 +4,16 @@
     Copyright (C) 2003-2018 GRAME, Centre National de Creation Musicale
     ---------------------------------------------------------------------
     This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation; either version 2.1 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+    GNU Lesser General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
+    You should have received a copy of the GNU Lesser General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -21,7 +21,8 @@
 
 #include "compile_sched.hh"
 #include "floats.hh"
-#include "ppsig.hh"
+
+using namespace std;
 
 void SchedulerCompiler::compileMultiSignal(Tree L)
 {
@@ -49,10 +50,10 @@ void SchedulerCompiler::compileMultiSignal(Tree L)
     // Build tasks list
     fClass->buildTasksList();
 
-    generateUserInterfaceTree(prepareUserInterfaceTree(fUIRoot), true);
-    generateMacroInterfaceTree("", prepareUserInterfaceTree(fUIRoot));
+    generateUserInterfaceTree(fUITree.prepareUserInterfaceTree(), true);
+    generateMacroInterfaceTree("", fUITree.prepareUserInterfaceTree());
     if (fDescription) {
-        fDescription->ui(prepareUserInterfaceTree(fUIRoot));
+        fDescription->ui(fUITree.prepareUserInterfaceTree());
     }
 }
 
@@ -65,7 +66,8 @@ void SchedulerCompiler::compileMultiSignal(Tree L)
  * @param delay the maximum delay
  * @param cexp the content of the signal as a C++ expression
  */
-void SchedulerCompiler::vectorLoop(const string& tname, const string& vecname, const string& cexp, const string& ccs)
+void SchedulerCompiler::vectorLoop(const string& tname, const string& vecname, const string& cexp,
+                                   const string& ccs)
 {
     // -- declare the vector
     fClass->addSharedDecl(vecname);
@@ -86,8 +88,8 @@ void SchedulerCompiler::vectorLoop(const string& tname, const string& vecname, c
  * @param delay the maximum delay
  * @param cexp the content of the signal as a C++ expression
  */
-void SchedulerCompiler::dlineLoop(const string& tname, const string& dlname, int delay, const string& cexp,
-                                  const string& ccs)
+void SchedulerCompiler::dlineLoop(const string& tname, const string& dlname, int delay,
+                                  const string& cexp, const string& ccs)
 {
     if (delay < gGlobal->gMaxCopyDelay) {
         // Implementation of a copy based delayline
@@ -118,13 +120,15 @@ void SchedulerCompiler::dlineLoop(const string& tname, const string& dlname, int
         fClass->addZone2(subst("$0* \t$1 = &$2[$3];", tname, dlname, buf, dsize));
 
         // -- copy the stored samples to the delay line
-        fClass->addPreCode(Statement(ccs, subst("for (int i=0; i<$2; i++) $0[i]=$1[i];", buf, pmem, dsize)));
+        fClass->addPreCode(
+            Statement(ccs, subst("for (int i=0; i<$2; i++) $0[i]=$1[i];", buf, pmem, dsize)));
 
         // -- compute the new samples
         fClass->addExecCode(Statement(ccs, subst("$0[i] = $1;", dlname, cexp)));
 
         // -- copy back to stored samples
-        fClass->addPostCode(Statement(ccs, subst("for (int i=0; i<$2; i++) $0[i]=$1[count+i];", pmem, buf, dsize)));
+        fClass->addPostCode(
+            Statement(ccs, subst("for (int i=0; i<$2; i++) $0[i]=$1[count+i];", pmem, buf, dsize)));
 
     } else {
         // Implementation of a ring-buffer delayline

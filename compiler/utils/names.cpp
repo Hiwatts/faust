@@ -4,16 +4,16 @@
     Copyright (C) 2003-2018 GRAME, Centre National de Creation Musicale
     ---------------------------------------------------------------------
     This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation; either version 2.1 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+    GNU Lesser General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
+    You should have received a copy of the GNU Lesser General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -25,13 +25,17 @@
  *
  **/
 
-#include "names.hh"
+#include <algorithm>
+
 #include "Text.hh"
 #include "doc_Text.hh"
 #include "exception.hh"
 #include "global.hh"
+#include "names.hh"
 #include "ppsig.hh"
 #include "property.hh"
+
+using namespace std;
 
 // History
 // 2009/09/08 : get/setDefNameProperty
@@ -53,7 +57,7 @@ void setDefNameProperty(Tree t, const string& name)
 {
     // cerr << "setDefNameProperty : " << name << " FOR " << t << "#" << boxpp(t) << endl;
     int n = (int)name.size();
-    int m = (gGlobal->gMaxNameSize > 1023) ? 1023 : gGlobal->gMaxNameSize;
+    int m = std::min<int>(1023, gGlobal->gMaxNameSize);
 
     if (n > m) {
         // the name is too long we reduce it to 2/3 of maxsize
@@ -78,7 +82,7 @@ void setDefNameProperty(Tree t, const string& name)
     }
 }
 
-bool getDefNameProperty(Tree t, Tree& id)
+LIBFAUST_API bool getDefNameProperty(Tree t, Tree& id)
 {
     // cerr << "getDefNameProperty of : " << t << endl;
     return getProperty(t, gGlobal->DEFNAMEPROPERTY, id);

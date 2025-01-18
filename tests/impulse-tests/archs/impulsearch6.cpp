@@ -19,13 +19,14 @@ static void runDSP2(dsp* DSP, const string& file, int& linenum, int nbsamples, b
     string filename = file;
     filename = filename.substr(0, filename.find ('.'));
     snprintf(rcfilename, 255, "%src", filename.c_str());
+    dsp* oldDSP = DSP;
     
     FUI finterface;
     DSP->buildUserInterface(&finterface);
     
     // Soundfile
-    TestMemoryReader memory_reader;
-    SoundUI sound_ui("", -1, &memory_reader, (sizeof(FAUSTFLOAT) == sizeof(double)));
+    TestMemoryReader* memory_reader = new TestMemoryReader();
+    SoundUI sound_ui("", -1, memory_reader, (sizeof(FAUSTFLOAT) == sizeof(double)));
     DSP->buildUserInterface(&sound_ui);
     
     // Get control and then 'initRandom'
@@ -140,11 +141,11 @@ static void runDSP2(dsp* DSP, const string& file, int& linenum, int nbsamples, b
     
     delete ichan;
     if (ochan != ichan) delete ochan;
+    mydsp::destroy(oldDSP);
     mydsp::destroy(DSP);
 }
 
-
-malloc_memory_manager gManager;
+malloc_memory_manager_check gManager;
 
 int main(int argc, char* argv[])
 {

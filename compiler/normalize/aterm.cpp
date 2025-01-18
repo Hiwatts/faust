@@ -4,16 +4,16 @@
     Copyright (C) 2003-2018 GRAME, Centre National de Creation Musicale
     ---------------------------------------------------------------------
     This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation; either version 2.1 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+    GNU Lesser General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
+    You should have received a copy of the GNU Lesser General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -28,10 +28,11 @@ using namespace std;
 typedef map<Tree, mterm> SM;
 
 aterm::aterm()
-{}
+{
+}
 
 /**
- * create a aterm from a tree expression
+ * Create a aterm from a tree expression
  */
 aterm::aterm(Tree t)
 {
@@ -47,7 +48,7 @@ aterm::aterm(Tree t)
 /**
  * Add two terms trying to simplify the result
  */
-static Tree simplifyingAdd(Tree t1, Tree t2)
+Tree simplifyingAdd(Tree t1, Tree t2)
 {
     faustassert(t1);
     faustassert(t2);
@@ -70,7 +71,7 @@ static Tree simplifyingAdd(Tree t1, Tree t2)
 }
 
 /**
- * return the corresponding normalized expression tree
+ * Return the corresponding normalized expression tree
  */
 
 /*====================================================
@@ -123,29 +124,29 @@ static void addTermsWithSign(bool p1, Tree v1, bool p2, Tree v2, bool& p3, Tree&
 
 Tree aterm::normalizedTree() const
 {
-    // store positive and negative tems by order and sign
+    // store positive and negative terms by order and sign
     // positive terms are stored in P[]
     // negative terms are inverted (made positive) and stored in N[]
+    // terms sorted by order: to better enable the sharing of expensive expressions (like signal
+    // over control.etc)
     Tree P[4], N[4];
-    bool hasPositiveTerm = false;
-    bool hasNegativeTerm = false;
 
     // prepare
-    for (int order = 0; order < 4; order++) P[order] = N[order] = tree(0);
+    for (int order = 0; order < 4; order++) {
+        P[order] = N[order] = tree(0);
+    }
 
     // sum by order and sign
     for (const auto& p : fSig2MTerms) {
         const mterm& m = p.second;
         if (m.isNegative()) {
-            Tree t          = m.normalizedTree(false, true);
-            int  order      = getSigOrder(t);
-            N[order]        = simplifyingAdd(N[order], t);
-            hasNegativeTerm = true;
+            Tree t     = m.normalizedTree(false, true);  // not in signatureMode
+            int  order = getSigOrder(t);
+            N[order]   = simplifyingAdd(N[order], t);
         } else {
-            Tree t          = m.normalizedTree();
-            int  order      = getSigOrder(t);
-            P[order]        = simplifyingAdd(P[order], t);
-            hasPositiveTerm = true;
+            Tree t     = m.normalizedTree();
+            int  order = getSigOrder(t);
+            P[order]   = simplifyingAdd(P[order], t);
         }
     }
 
@@ -165,11 +166,9 @@ Tree aterm::normalizedTree() const
     }
 
     if (!signe) {
-        AudioType* ty   = (AudioType*)SUM->getType();
-        Tree       zero = (ty && ty->nature() == kReal) ? sigReal(0.0) : sigInt(0);
-
-        SUM = sigSub(zero, SUM);
+        SUM = sigBinOp(kMul, sigInt(-1), SUM);
     }
+
 #ifdef TRACE
     cerr << __LINE__ << ":" << __FUNCTION__ << "(" << *this << ") ---> " << ppsig(SUM) << endl;
 #endif
@@ -293,16 +292,15 @@ mterm aterm::greatestDivisor() const
     mterm maxGCD(1);
     // cerr << "greatestDivisor of " << *this << endl;
 
-    for (SM::const_iterator p1 = fSig2MTerms.begin(); p1 != fSig2MTerms.end(); p1++) {
-        for (SM::const_iterator p2 = p1; p2 != fSig2MTerms.end(); p2++) {
-            if (p2 != p1) {
-                mterm g = gcd(p1->second, p2->second);
-                // cerr << "TRYING " << g << " of complexity " << g.complexity() << " (max complexity so far " <<
-                // maxComplexity << ")" << endl;
-                if (g.complexity() > maxComplexity) {
-                    maxComplexity = g.complexity();
-                    maxGCD        = g;
-                }
+    for (auto p1 = fSig2MTerms.begin(); p1 != fSig2MTerms.end(); p1++) {
+        for (auto p2 = std::next(p1); p2 != fSig2MTerms.end(); p2++) {
+            mterm g = gcd(p1->second, p2->second);
+            // cerr << "TRYING " << g << " of complexity " << g.complexity() << " (max complexity so
+            // far " << maxComplexity << ")" << endl;
+            int complexity = g.complexity();
+            if (complexity > maxComplexity) {
+                maxComplexity = complexity;
+                maxGCD        = g;
             }
         }
     }

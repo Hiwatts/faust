@@ -1,0 +1,83 @@
+#! /bin/bash -e
+
+#####################################################################
+#                                                                   #
+#               Compiles Faust programs to SVG plotters             #
+#               (c) Grame, 2023                                     #
+#                                                                   #
+#####################################################################
+
+. faustpath
+. faustoptflags
+. usage.sh
+
+CXXFLAGS+=" $MYGCCFLAGS"  # So that additional CXXFLAGS can be used
+
+ARCHFILE=$FAUSTARCH/svgplot/svgplot.cpp
+ARCHLIB+=" -pthread"
+
+FAUSTFLOAT=float
+SOUNDFILELIBS=""
+
+echoHelp() {
+    usage faust2svgplot "[options] [Faust options] <file.dsp>"
+    echo "Compiles Faust programs to SVG plotters, additional control parameters depend of the DSP, the following 2 options are given at runtime (see https://github.com/grame-cncm/faust/tree/master-dev/architecture/svgplot):"
+    option "-r <rate>" "change the sample rate (default is 44100 Hz)"
+    option
+    option -double "generates code with samples of type 'double'."
+    option -soundfile
+    option "Faust options"
+    exit
+}
+
+if [ "$#" -eq 0 ]; then
+    echo 'Please, provide a Faust file to process !'
+    echo ''
+    echoHelp
+fi
+
+#-------------------------------------------------------------------
+# Analyze command arguments :
+# faust options                 -> OPTIONS
+# existing *.dsp files          -> FILES
+#
+
+# dispatch command arguments
+for p in $@; do
+
+    if [ $p = "-help" ] || [ $p = "-h" ]; then
+        echoHelp
+    elif [ $p = "-double" ]; then
+        OPTIONS="$OPTIONS $p"
+        FAUSTFLOAT="double"
+    elif [ $p = "-soundfile" ]; then
+        CXXFLAGS="$CXXFLAGS -DSOUNDFILE"
+        SOUNDFILELIBS=`pkg-config --cflags --static --libs sndfile`
+    elif [ ${p:0:1} = "-" ]; then
+        OPTIONS="$OPTIONS $p"
+    elif [[ -f "$p" ]] && [ ${p: -4} == ".dsp" ]; then
+        FILES="$FILES $p"
+    else
+        OPTIONS="$OPTIONS $p"
+    fi
+done
+
+#-------------------------------------------------------------------
+# compile the *.dsp files
+
+for f in $FILES; do
+
+    # compile Faust to c++
+    faust -i -a $ARCHFILE -cn mydsp $OPTIONS "$f" -o "$f.cpp" || exit
+
+    # compile c++ to binary
+    (
+        $CXX $CXXFLAGS "$f.cpp" $PROCARCH $LLVM_LIBS $ARCHLIB $SOUNDFILELIBS $OMP -DFAUSTFLOAT=$FAUSTFLOAT -o "${f%.dsp}"
+    ) > /dev/null || exit
+    rm "$f.cpp"
+
+    # collect binary file name for FaustWorks
+    BINARIES="$BINARIES${f%.dsp};"
+done
+
+echo $BINARIES

@@ -25,15 +25,29 @@
 #ifndef __LibsndfileReader__
 #define __LibsndfileReader__
 
-#ifdef SAMPLERATE
+#ifdef _SAMPLERATE
 #include <samplerate.h>
 #endif
 #include <sndfile.h>
 #include <string.h>
 #include <assert.h>
 #include <iostream>
+#include <fstream>
 
 #include "faust/gui/Soundfile.h"
+
+/*
+// Deactivated for now, since the macOS remote cross-compiler fails with this code.
+#if __has_include(<filesystem>) && __cplusplus >= 201703L
+    #define HAS_FILESYSTEM
+    #include <filesystem>
+    namespace fs = std::filesystem;
+#elif __has_include(<experimental/filesystem>) && __cplusplus >= 201103L
+    #define HAS_FILESYSTEM
+    #include <experimental/filesystem>
+    namespace fs = std::experimental::filesystem;
+#endif
+*/
 
 struct VFLibsndfile {
     
@@ -141,15 +155,30 @@ struct LibsndfileReader : public SoundfileReader {
     typedef sf_count_t (* sample_read)(SNDFILE* sndfile, void* buffer, sf_count_t frames);
 	
     // Check file
-    bool checkFile(const std::string& path_name)
+    bool checkFile(const std::string& path_name) override
     {
-        SF_INFO snd_info;
-        snd_info.format = 0;
-        SNDFILE* snd_file = sf_open(path_name.c_str(), SFM_READ, &snd_info);
-        return checkFileAux(snd_file, path_name);
+        /*
+         // Better since it supports Unicode characters.
+         #ifdef HAS_FILESYSTEM
+         if (!fs::exists(path_name)) {
+            std::cerr << "FILE NOT FOUND\n";
+            return false;
+         }
+         #endif
+        */
+    
+        std::ifstream ifs(path_name);
+        if (!ifs.is_open()) {
+            return false;
+        } else {
+            SF_INFO snd_info;
+            snd_info.format = 0;
+            SNDFILE* snd_file = sf_open(path_name.c_str(), SFM_READ, &snd_info);
+            return checkFileAux(snd_file, path_name);
+        }
     }
     
-    bool checkFile(unsigned char* buffer, size_t length)
+    bool checkFile(unsigned char* buffer, size_t length) override
     {
         SF_INFO snd_info;
         snd_info.format = 0;
@@ -170,7 +199,7 @@ struct LibsndfileReader : public SoundfileReader {
     }
 
     // Open the file and returns its length and channels
-    void getParamsFile(const std::string& path_name, int& channels, int& length)
+    void getParamsFile(const std::string& path_name, int& channels, int& length) override
     {
         SF_INFO	snd_info;
         snd_info.format = 0;
@@ -178,7 +207,7 @@ struct LibsndfileReader : public SoundfileReader {
         getParamsFileAux(snd_file, snd_info, channels, length);
     }
     
-    void getParamsFile(unsigned char* buffer, size_t size, int& channels, int& length)
+    void getParamsFile(unsigned char* buffer, size_t size, int& channels, int& length) override
     {
         SF_INFO	snd_info;
         snd_info.format = 0;
@@ -191,7 +220,7 @@ struct LibsndfileReader : public SoundfileReader {
     {
         assert(snd_file);
         channels = int(snd_info.channels);
-    #ifdef SAMPLERATE
+    #ifdef _SAMPLERATE
         length = (isResampling(snd_info.samplerate)) ? ((double(snd_info.frames) * double(fDriverSR) / double(snd_info.samplerate)) + BUFFER_SIZE) : int(snd_info.frames);
     #else
         length = int(snd_info.frames);
@@ -200,7 +229,7 @@ struct LibsndfileReader : public SoundfileReader {
     }
     
     // Read the file
-    void readFile(Soundfile* soundfile, const std::string& path_name, int part, int& offset, int max_chan)
+    void readFile(Soundfile* soundfile, const std::string& path_name, int part, int& offset, int max_chan) override
     {
         SF_INFO	snd_info;
         snd_info.format = 0;
@@ -208,7 +237,7 @@ struct LibsndfileReader : public SoundfileReader {
         readFileAux(soundfile, snd_file, snd_info, part, offset, max_chan);
     }
     
-    void readFile(Soundfile* soundfile, unsigned char* buffer, size_t length, int part, int& offset, int max_chan)
+    void readFile(Soundfile* soundfile, unsigned char* buffer, size_t length, int part, int& offset, int max_chan) override
     {
         SF_INFO	snd_info;
         snd_info.format = 0;
@@ -222,7 +251,7 @@ struct LibsndfileReader : public SoundfileReader {
     {
         assert(snd_file);
         int channels = std::min<int>(max_chan, snd_info.channels);
-    #ifdef SAMPLERATE
+    #ifdef _SAMPLERATE
         if (isResampling(snd_info.samplerate)) {
             soundfile->fLength[part] = int(double(snd_info.frames) * double(fDriverSR) / double(snd_info.samplerate));
             soundfile->fSR[part] = fDriverSR;
@@ -249,7 +278,7 @@ struct LibsndfileReader : public SoundfileReader {
             reader = reinterpret_cast<sample_read>(sf_readf_float);
         }
         
-    #ifdef SAMPLERATE
+    #ifdef _SAMPLERATE
         // Resampling
         SRC_STATE* resampler = nullptr;
         float* src_buffer_out = nullptr;
@@ -275,7 +304,7 @@ struct LibsndfileReader : public SoundfileReader {
         
         do {
             nbf = reader(snd_file, buffer_in, BUFFER_SIZE);
-        #ifdef SAMPLERATE
+        #ifdef _SAMPLERATE
             // Resampling
             if  (isResampling(snd_info.samplerate)) {
                 int in_offset = 0;
@@ -325,7 +354,7 @@ struct LibsndfileReader : public SoundfileReader {
         } while (nbf == BUFFER_SIZE);
 		
         sf_close(snd_file);
-    #ifdef SAMPLERATE
+    #ifdef _SAMPLERATE
         if (resampler) src_delete(resampler);
     #endif
     }

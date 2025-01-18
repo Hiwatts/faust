@@ -4,16 +4,16 @@
     Copyright (C) 2003-2018 GRAME, Centre National de Creation Musicale
     ---------------------------------------------------------------------
     This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation; either version 2.1 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+    GNU Lesser General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
+    You should have received a copy of the GNU Lesser General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -61,7 +61,7 @@ using namespace clang;
 using namespace clang::driver;
 
 #include "CInterface_exp.h"
-//#include "scheduler_exp.h"
+// #include "scheduler_exp.h"
 
 // Helper functions
 bool    linkModules(Module* dst, Module* src, char* error_msg);
@@ -95,8 +95,12 @@ ClangCodeContainer::ClangCodeContainer(const string& name, int numInputs, int nu
         fCompiler = new InstructionsCompiler(fContainer);
     }
 
-    if (gGlobal->gPrintXMLSwitch) fCompiler->setDescription(new Description());
-    if (gGlobal->gPrintDocSwitch) fCompiler->setDescription(new Description());
+    if (gGlobal->gPrintXMLSwitch) {
+        fCompiler->setDescription(new Description());
+    }
+    if (gGlobal->gPrintDocSwitch) {
+        fCompiler->setDescription(new Description());
+    }
 }
 
 ClangCodeContainer::~ClangCodeContainer()
@@ -112,8 +116,8 @@ LLVMResult* ClangCodeContainer::produceModule(Tree signals, const string& filena
 
 #if (LLVM_VERSION_MAJOR >= 4) || (LLVM_VERSION_MAJOR == 3 && LLVM_VERSION_MINOR >= 4)
     // Compile it with 'clang'
-    IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts   = new DiagnosticOptions();
-    TextDiagnosticPrinter*                DiagClient = new TextDiagnosticPrinter(llvm::errs(), &*DiagOpts);
+    IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts = new DiagnosticOptions();
+    TextDiagnosticPrinter* DiagClient = new TextDiagnosticPrinter(llvm::errs(), &*DiagOpts);
 
     IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
     DiagnosticsEngine                 Diags(DiagID, &*DiagOpts, DiagClient);
@@ -159,7 +163,8 @@ LLVMResult* ClangCodeContainer::produceModule(Tree signals, const string& filena
     const driver::ArgStringList&  CCArgs = Cmd->getArguments();
     OwningPtr<CompilerInvocation> CI(new CompilerInvocation);
     CompilerInvocation::CreateFromArgs(*CI, const_cast<const char**>(CCArgs.data()),
-                                       const_cast<const char**>(CCArgs.data()) + CCArgs.size(), Diags);
+                                       const_cast<const char**>(CCArgs.data()) + CCArgs.size(),
+                                       Diags);
 
     // Create a compiler instance to handle the actual work.
     CompilerInstance Clang;
@@ -171,7 +176,8 @@ LLVMResult* ClangCodeContainer::produceModule(Tree signals, const string& filena
         return nullptr;
     }
 
-    CompilerInvocation::setLangDefaults(Clang.getLangOpts(), IK_CXX, LangStandard::lang_unspecified);
+    CompilerInvocation::setLangDefaults(Clang.getLangOpts(), IK_CXX,
+                                        LangStandard::lang_unspecified);
 
     // Create and execute the frontend to generate an LLVM bitcode module.
     OwningPtr<CodeGenAction> Act(new EmitLLVMOnlyAction());
@@ -198,7 +204,9 @@ LLVMResult* ClangCodeContainer::produceModule(Tree signals, const string& filena
                     Module* module = loadModule(module_name, result->fContext);
                     if (module) {
                         bool res = linkModules(result->fModule, module, error_msg);
-                        if (!res) printf("Link LLVM modules %s\n", error_msg);
+                        if (!res) {
+                            printf("Link LLVM modules %s\n", error_msg);
+                        }
                     }
                 }
             }
@@ -231,7 +239,8 @@ LLVMResult* ClangCodeContainer::produceModule(Tree signals, const string& filena
 #endif
 }
 
-CodeContainer* ClangCodeContainer::createContainer(const string& name, int numInputs, int numOutputs)
+CodeContainer* ClangCodeContainer::createContainer(const string& name, int numInputs,
+                                                   int numOutputs)
 {
     return new ClangCodeContainer(name, numInputs, numOutputs);
 }

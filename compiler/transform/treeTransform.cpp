@@ -4,55 +4,71 @@
     Copyright (C) 2003-2018 GRAME, Centre National de Creation Musicale
     ---------------------------------------------------------------------
     This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation; either version 2.1 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+    GNU Lesser General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
+    You should have received a copy of the GNU Lesser General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
  ************************************************************************/
 
-#include "treeTransform.hh"
 #include <stdlib.h>
 #include <cstdlib>
-#include <map>
+
 #include "Text.hh"
-#include "global.hh"
-#include "ppsig.hh"
-#include "property.hh"
-#include "signals.hh"
-#include "sigtyperules.hh"
-#include "tlib.hh"
-#include "tree.hh"
+#include "list.hh"
+#include "treeTransform.hh"
+
+using namespace std;
 
 //------------------------------------------------------------------------------
 // TreeTransform: Recursive transformation of a Tree with memoization
 //------------------------------------------------------------------------------
 // This is an abstract class. Derived class just have to implement the
-// `transformation(t)` method. The `transformation(t)` method
+// `transformation(t)` or `selfRec(t)` methods. The `transformation(t)` method
 // should not call itself recursively directly, but exclusively via `self(t)`
 // (or `mapself(lt)` for a list).
 //------------------------------------------------------------------------------
 
 Tree TreeTransform::self(Tree t)
 {
-    if (fTraceFlag) traceEnter(t);
+    if (fTrace) {
+        traceEnter(t);
+    }
     fIndent++;
     Tree r;
     if (!fResult.get(t, r)) {
-        r = transformation(t);
+        r = postprocess(transformation(t));
         fResult.set(t, r);
     }
     fIndent--;
-    if (fTraceFlag) traceExit(t, r);
+    if (fTrace) {
+        traceExit(t, r);
+    }
     return r;
+}
+
+void TreeTransform::traceMsg(std::string msg)
+{
+    if (fTrace) {
+        tab(fIndent, cerr);
+        cerr << msg << endl;
+    }
+}
+
+void TreeTransform::traceMsg(std::string msg, Tree t)
+{
+    if (fTrace) {
+        tab(fIndent, cerr);
+        cerr << msg << ": " << *t << endl;
+    }
 }
 
 void TreeTransform::traceEnter(Tree t)
@@ -72,6 +88,31 @@ Tree TreeTransform::mapself(Tree lt)
     if (isNil(lt)) {
         return lt;
     } else {
-        return cons(self(hd(lt)), mapself(tl(lt)));
+        Tree e = hd(lt);
+        Tree f = self(e);
+        // std::cerr << "e: " << *e << " f: " << *f << std::endl;
+        return cons(f, mapself(tl(lt)));
     }
+}
+
+// To be implemented by subclassess for a specific transformation on recursive signals
+Tree TreeTransform::selfRec(Tree t)
+{
+    return self(t);
+}
+
+// Apply selfRec on all recursive signals in the group
+Tree TreeTransform::mapselfRec(Tree lt)
+{
+    if (isNil(lt)) {
+        return lt;
+    } else {
+        return cons(selfRec(hd(lt)), mapselfRec(tl(lt)));
+    }
+}
+
+// This second pass is used to modify a tree after the transformation of its children
+Tree TreeTransform::postprocess(Tree t)
+{
+    return t;
 }

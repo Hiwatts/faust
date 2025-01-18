@@ -4,16 +4,16 @@
     Copyright (C) 2003-2018 GRAME, Centre National de Creation Musicale
     ---------------------------------------------------------------------
     This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation; either version 2.1 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+    GNU Lesser General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
+    You should have received a copy of the GNU Lesser General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -21,8 +21,6 @@
 
 #ifndef _DLANG_INSTRUCTIONS_H
 #define _DLANG_INSTRUCTIONS_H
-
-using namespace std;
 
 #include "text_instructions.hh"
 #include "type_manager.hh"
@@ -33,12 +31,12 @@ class DLangInstVisitor : public TextInstVisitor {
      Global functions names table as a static variable in the visitor
      so that each function prototype is generated at most once in the module.
      */
-    static map<string, bool> gFunctionSymbolTable;
+    static std::map<std::string, bool> gFunctionSymbolTable;
 
     // Polymorphic math functions
-    map<string, string> gPolyMathLibTable;
-    
-    string cast2FAUSTFLOAT(const string& str) { return "cast(FAUSTFLOAT)" + str; }
+    std::map<std::string, std::string> gPolyMathLibTable;
+
+    std::string cast2FAUSTFLOAT(const std::string& str) { return "cast(FAUSTFLOAT)" + str; }
 
    public:
     using TextInstVisitor::visit;
@@ -49,86 +47,86 @@ class DLangInstVisitor : public TextInstVisitor {
         fTypeManager->fTypeDirectTable[Typed::kInt64]     = "long";
         fTypeManager->fTypeDirectTable[Typed::kInt64_ptr] = "long*";
         fTypeManager->fTypeDirectTable[Typed::kInt64_vec] = "vector<long>";
-     
+
         // Int version
         gPolyMathLibTable["abs"]   = "std.math.abs";
         gPolyMathLibTable["max_i"] = "max";
         gPolyMathLibTable["min_i"] = "min";
-        gPolyMathLibTable["rint"] = "round";
+        gPolyMathLibTable["rint"]  = "round";
 
         // Float version
-        gPolyMathLibTable["fabsf"]  = "fabs";
-        gPolyMathLibTable["acosf"]  = "acos";
-        gPolyMathLibTable["asinf"]  = "asin";
-        gPolyMathLibTable["atanf"]  = "atan";
-        gPolyMathLibTable["atan2f"] = "atan2";
-        gPolyMathLibTable["ceilf"]  = "ceil";
-        gPolyMathLibTable["cosf"]   = "cos";
-        gPolyMathLibTable["coshf"]  = "cosh";
-        gPolyMathLibTable["expf"]   = "exp";
-        gPolyMathLibTable["floorf"] = "floor";
-        gPolyMathLibTable["fmodf"]  = "fmod";
-        gPolyMathLibTable["logf"]   = "log";
-        gPolyMathLibTable["log10f"] = "log10";
-        gPolyMathLibTable["max_f"]  = "fmax";
-        gPolyMathLibTable["min_f"]  = "fmin";
-        gPolyMathLibTable["powf"]   = "pow";
-        gPolyMathLibTable["remainderf"] = "remainder";
-        gPolyMathLibTable["roundf"] = "round";
-        gPolyMathLibTable["sinf"]   = "sin";
-        gPolyMathLibTable["sinhf"]  = "sinh";
-        gPolyMathLibTable["sqrtf"]  = "sqrt";
-        gPolyMathLibTable["tanf"]   = "tan";
-        gPolyMathLibTable["tanhf"]  = "tanh";
-    
-        // Hyperbolic
-        gPolyMathLibTable["acoshf"]     = "acosh";
-        gPolyMathLibTable["asinhf"]     = "asinh";
-        gPolyMathLibTable["atanhf"]     = "atanh";
+        gPolyMathLibTable["fabsf"]      = "fabs";
+        gPolyMathLibTable["acosf"]      = "acos";
+        gPolyMathLibTable["asinf"]      = "asin";
+        gPolyMathLibTable["atanf"]      = "atan";
+        gPolyMathLibTable["atan2f"]     = "atan2";
+        gPolyMathLibTable["ceilf"]      = "ceil";
+        gPolyMathLibTable["cosf"]       = "cos";
         gPolyMathLibTable["coshf"]      = "cosh";
+        gPolyMathLibTable["expf"]       = "exp";
+        gPolyMathLibTable["floorf"]     = "floor";
+        gPolyMathLibTable["fmodf"]      = "fmod";
+        gPolyMathLibTable["logf"]       = "log";
+        gPolyMathLibTable["log10f"]     = "log10";
+        gPolyMathLibTable["max_f"]      = "fmax";
+        gPolyMathLibTable["min_f"]      = "fmin";
+        gPolyMathLibTable["powf"]       = "pow";
+        gPolyMathLibTable["remainderf"] = "remainder";
+        gPolyMathLibTable["roundf"]     = "round";
+        gPolyMathLibTable["sinf"]       = "sin";
         gPolyMathLibTable["sinhf"]      = "sinh";
+        gPolyMathLibTable["sqrtf"]      = "sqrt";
+        gPolyMathLibTable["tanf"]       = "tan";
         gPolyMathLibTable["tanhf"]      = "tanh";
-        
-        gPolyMathLibTable["isnanf"]     = "isNaN";
-        gPolyMathLibTable["isinff"]     = "isInfinity";
-        gPolyMathLibTable["copysignf"]  = "copysign";
-   
-        // Double version
-        gPolyMathLibTable["fabs"]  = "fabs";
-        gPolyMathLibTable["acos"]  = "acos";
-        gPolyMathLibTable["asin"]  = "asin";
-        gPolyMathLibTable["atan"]  = "atan";
-        gPolyMathLibTable["atan2"] = "atan2";
-        gPolyMathLibTable["ceil"]  = "ceil";
-        gPolyMathLibTable["cos"]   = "cos";
-        gPolyMathLibTable["cosh"]  = "cosh";
-        gPolyMathLibTable["exp"]   = "exp";
-        gPolyMathLibTable["floor"] = "floor";
-        gPolyMathLibTable["fmod"]  = "fmod";
-        gPolyMathLibTable["log"]   = "log";
-        gPolyMathLibTable["log10"] = "log10";
-        gPolyMathLibTable["max_"]  = "fmax";
-        gPolyMathLibTable["min_"]  = "fmin";
-        gPolyMathLibTable["pow"]   = "pow";
-        gPolyMathLibTable["remainder"] = "remainder";
-        gPolyMathLibTable["round"] = "round";
-        gPolyMathLibTable["sin"]   = "sin";
-        gPolyMathLibTable["sinh"]  = "sinh";
-        gPolyMathLibTable["sqrt"]  = "sqrt";
-        gPolyMathLibTable["tan"]   = "tan";
-        gPolyMathLibTable["tanh"]  = "tanh";
-    
+
         // Hyperbolic
-        gPolyMathLibTable["acosh"]     = "acosh";
-        gPolyMathLibTable["asinh"]     = "asinh";
-        gPolyMathLibTable["atanh"]     = "atanh";
+        gPolyMathLibTable["acoshf"] = "acosh";
+        gPolyMathLibTable["asinhf"] = "asinh";
+        gPolyMathLibTable["atanhf"] = "atanh";
+        gPolyMathLibTable["coshf"]  = "cosh";
+        gPolyMathLibTable["sinhf"]  = "sinh";
+        gPolyMathLibTable["tanhf"]  = "tanh";
+
+        gPolyMathLibTable["isnanf"]    = "isNaN";
+        gPolyMathLibTable["isinff"]    = "isInfinity";
+        gPolyMathLibTable["copysignf"] = "copysign";
+
+        // Double version
+        gPolyMathLibTable["fabs"]      = "fabs";
+        gPolyMathLibTable["acos"]      = "acos";
+        gPolyMathLibTable["asin"]      = "asin";
+        gPolyMathLibTable["atan"]      = "atan";
+        gPolyMathLibTable["atan2"]     = "atan2";
+        gPolyMathLibTable["ceil"]      = "ceil";
+        gPolyMathLibTable["cos"]       = "cos";
         gPolyMathLibTable["cosh"]      = "cosh";
+        gPolyMathLibTable["exp"]       = "exp";
+        gPolyMathLibTable["floor"]     = "floor";
+        gPolyMathLibTable["fmod"]      = "fmod";
+        gPolyMathLibTable["log"]       = "log";
+        gPolyMathLibTable["log10"]     = "log10";
+        gPolyMathLibTable["max_"]      = "fmax";
+        gPolyMathLibTable["min_"]      = "fmin";
+        gPolyMathLibTable["pow"]       = "pow";
+        gPolyMathLibTable["remainder"] = "remainder";
+        gPolyMathLibTable["round"]     = "round";
+        gPolyMathLibTable["sin"]       = "sin";
         gPolyMathLibTable["sinh"]      = "sinh";
+        gPolyMathLibTable["sqrt"]      = "sqrt";
+        gPolyMathLibTable["tan"]       = "tan";
         gPolyMathLibTable["tanh"]      = "tanh";
-        
-        gPolyMathLibTable["isnan"]     = "isNaN";
-        gPolyMathLibTable["isinf"]     = "isInfinity";
-        gPolyMathLibTable["copysign"]  = "copysign";
+
+        // Hyperbolic
+        gPolyMathLibTable["acosh"] = "acosh";
+        gPolyMathLibTable["asinh"] = "asinh";
+        gPolyMathLibTable["atanh"] = "atanh";
+        gPolyMathLibTable["cosh"]  = "cosh";
+        gPolyMathLibTable["sinh"]  = "sinh";
+        gPolyMathLibTable["tanh"]  = "tanh";
+
+        gPolyMathLibTable["isnan"]    = "isNaN";
+        gPolyMathLibTable["isinf"]    = "isInfinity";
+        gPolyMathLibTable["copysign"] = "copysign";
     }
 
     virtual ~DLangInstVisitor() {}
@@ -137,8 +135,8 @@ class DLangInstVisitor : public TextInstVisitor {
     {
         // Special case
         if (inst->fZone == "0") {
-            *fOut << "uiInterface.declare(" << inst->fZone << ", " << quote(inst->fKey) << ", " << quote(inst->fValue)
-                  << ")";
+            *fOut << "uiInterface.declare(" << inst->fZone << ", " << quote(inst->fKey) << ", "
+                  << quote(inst->fValue) << ")";
         } else {
             *fOut << "uiInterface.declare(&" << inst->fZone << ", " << quote(inst->fKey) << ", "
                   << quote(inst->fValue) << ")";
@@ -148,7 +146,7 @@ class DLangInstVisitor : public TextInstVisitor {
 
     virtual void visit(OpenboxInst* inst)
     {
-        string name;
+        std::string name;
         switch (inst->fOrient) {
             case OpenboxInst::kVerticalBox:
                 name = "uiInterface.openVerticalBox(";
@@ -175,14 +173,15 @@ class DLangInstVisitor : public TextInstVisitor {
         if (inst->fType == AddButtonInst::kDefaultButton) {
             *fOut << "uiInterface.addButton(" << quote(inst->fLabel) << ", &" << inst->fZone << ")";
         } else {
-            *fOut << "uiInterface.addCheckButton(" << quote(inst->fLabel) << ", &" << inst->fZone << ")";
+            *fOut << "uiInterface.addCheckButton(" << quote(inst->fLabel) << ", &" << inst->fZone
+                  << ")";
         }
         EndLine();
     }
 
     virtual void visit(AddSliderInst* inst)
     {
-        string name;
+        std::string name;
         switch (inst->fType) {
             case AddSliderInst::kHorizontal:
                 name = "uiInterface.addHorizontalSlider";
@@ -194,8 +193,8 @@ class DLangInstVisitor : public TextInstVisitor {
                 name = "uiInterface.addNumEntry";
                 break;
         }
-        *fOut << name << "(" << quote(inst->fLabel) << ", " << "&" << inst->fZone << ", "
-              << cast2FAUSTFLOAT(checkReal(inst->fInit)) << ", "
+        *fOut << name << "(" << quote(inst->fLabel) << ", "
+              << "&" << inst->fZone << ", " << cast2FAUSTFLOAT(checkReal(inst->fInit)) << ", "
               << cast2FAUSTFLOAT(checkReal(inst->fMin)) << ", "
               << cast2FAUSTFLOAT(checkReal(inst->fMax)) << ", "
               << cast2FAUSTFLOAT(checkReal(inst->fStep)) << ")";
@@ -204,7 +203,7 @@ class DLangInstVisitor : public TextInstVisitor {
 
     virtual void visit(AddBargraphInst* inst)
     {
-        string name;
+        std::string name;
         switch (inst->fType) {
             case AddBargraphInst::kHorizontal:
                 name = "uiInterface.addHorizontalBargraph";
@@ -221,35 +220,35 @@ class DLangInstVisitor : public TextInstVisitor {
 
     virtual void visit(AddSoundfileInst* inst)
     {
-        *fOut << "uiInterface.addSoundfile(" << quote(inst->fLabel) << ", " << quote(inst->fURL) << ", &"
-              << inst->fSFZone << ")";
+        *fOut << "uiInterface.addSoundfile(" << quote(inst->fLabel) << ", " << quote(inst->fURL)
+              << ", &" << inst->fSFZone << ")";
         EndLine();
     }
 
     virtual void visit(DeclareVarInst* inst)
     {
-        if (inst->fAddress->getAccess() & Address::kConst) {
+        if (inst->getAccess() & Address::kConst) {
             *fOut << "const ";
         }
 
-        if (inst->fAddress->getAccess() & Address::kStaticStruct) {
+        if (inst->fAddress->isStaticStruct()) {
             *fOut << "__gshared ";
         }
 
-        if (inst->fAddress->getAccess() & Address::kVolatile) {
+        if (inst->getAccess() & Address::kVolatile) {
             *fOut << "volatile ";
         }
         ArrayTyped* array_typed = dynamic_cast<ArrayTyped*>(inst->fType);
         if (array_typed && array_typed->fSize > 1) {
-            string type = fTypeManager->fTypeDirectTable[array_typed->fType->getType()];
+            std::string type = fTypeManager->fTypeDirectTable[array_typed->fType->getType()];
             if (inst->fValue) {
-                *fOut << type << "[] " << inst->fAddress->getName() << " = ";
+                *fOut << type << "[] " << inst->getName() << " = ";
                 inst->fValue->accept(this);
             } else {
-                *fOut << type << "[" << array_typed->fSize << "] " << inst->fAddress->getName();
+                *fOut << type << "[" << array_typed->fSize << "] " << inst->getName();
             }
         } else {
-            *fOut << fTypeManager->generateType(inst->fType, inst->fAddress->getName());
+            *fOut << fTypeManager->generateType(inst->fType, inst->getName());
             if (inst->fValue) {
                 *fOut << " = ";
                 inst->fValue->accept(this);
@@ -282,13 +281,17 @@ class DLangInstVisitor : public TextInstVisitor {
             *fOut << "inline ";
         }
 
-        if (inst->fType->fAttribute & FunTyped::kLocal || inst->fType->fAttribute & FunTyped::kStatic) {
+        if (inst->fType->fAttribute & FunTyped::kLocal ||
+            inst->fType->fAttribute & FunTyped::kStatic) {
             *fOut << "static ";
         }
 
         // Prototype
-        // Special case: member function `init` renamed to `initialize` so it doesnt conflict with D `.init` property.
-        *fOut << fTypeManager->generateType(inst->fType->fResult, generateFunName(inst->fName == "init" ? "initialize" : inst->fName));
+        // Special case: member function `init` renamed to `initialize` so it doesnt conflict with D
+        // `.init` property.
+        *fOut << fTypeManager->generateType(
+            inst->fType->fResult,
+            generateFunName(inst->fName == "init" ? "initialize" : inst->fName));
         generateFunDefArgs(inst);
         generateFunDefBody(inst);
     }
@@ -296,7 +299,7 @@ class DLangInstVisitor : public TextInstVisitor {
     virtual void generateFunDefBody(DeclareFunInst* inst)
     {
         if (inst->fCode->fCode.size() == 0) {
-            *fOut << ") nothrow @nogc;" << endl;  // Pure prototype
+            *fOut << ") nothrow @nogc;" << std::endl;  // Pure prototype
         } else {
             // Function body
             *fOut << ") nothrow @nogc {";
@@ -315,16 +318,15 @@ class DLangInstVisitor : public TextInstVisitor {
         *fOut << "&";
         inst->fAddress->accept(this);
     }
-    
+
     virtual void visit(BinopInst* inst)
     {
         // Special case for 'logical right-shift'
         if (strcmp(gBinOpTable[inst->fOpcode]->fName, ">>>") == 0) {
-            TypingVisitor typing;
-            inst->fInst1->accept(&typing);
-            if (isInt64Type(typing.fCurType)) {
+            Typed::VarType type = TypingVisitor::getType(inst->fInst1);
+            if (isInt64Type(type)) {
                 *fOut << "(cast(long)(cast(ulong)";
-            } else if (isInt32Type(typing.fCurType)) {
+            } else if (isInt32Type(type)) {
                 *fOut << "(cast(int)(cast(uint)";
             } else {
                 faustassert(false);
@@ -334,22 +336,15 @@ class DLangInstVisitor : public TextInstVisitor {
             inst->fInst2->accept(this);
             *fOut << "))";
         } else {
-            // We keep the fully parenthesized version
-            *fOut << "(";
-            inst->fInst1->accept(this);
-            *fOut << " ";
-            *fOut << gBinOpTable[inst->fOpcode]->fName;
-            *fOut << " ";
-            inst->fInst2->accept(this);
-            *fOut << ")";
+            TextInstVisitor::visit(inst);
         }
     }
 
     virtual void visit(::CastInst* inst)
     {
-        string type = fTypeManager->generateType(inst->fType);
-        *fOut << "cast(" << type << ")";
+        *fOut << "cast(" << fTypeManager->generateType(inst->fType) << ")(";
         inst->fInst->accept(this);
+        *fOut << ")";
     }
 
     /*
@@ -360,11 +355,11 @@ class DLangInstVisitor : public TextInstVisitor {
         indexed->fAddress->accept(this);
         DeclareStructTypeInst* struct_type = isStructType(indexed->getName());
         if (struct_type) {
-            Int32NumInst* field_index = static_cast<Int32NumInst*>(indexed->fIndex);
+            Int32NumInst* field_index = static_cast<Int32NumInst*>(indexed->getIndex());
             *fOut << "." << struct_type->fType->getName(field_index->fNum);
         } else {
             *fOut << "[";
-            indexed->fIndex->accept(this);
+            indexed->getIndex()->accept(this);
             *fOut << "]";
         }
     }
@@ -373,11 +368,12 @@ class DLangInstVisitor : public TextInstVisitor {
 
     virtual void visit(FunCallInst* inst)
     {
-        string name = gGlobal->getMathFunction(inst->fName);
-        name = (gPolyMathLibTable.find(name) != gPolyMathLibTable.end()) ? gPolyMathLibTable[name] : name;
+        std::string name = gGlobal->getMathFunction(inst->fName);
+        name = (gPolyMathLibTable.find(name) != gPolyMathLibTable.end()) ? gPolyMathLibTable[name]
+                                                                         : name;
         generateFunCall(inst, name);
     }
-    
+
     virtual void visit(FloatArrayNumInst* inst)
     {
         char sep = '[';

@@ -36,6 +36,10 @@
 
 #ifdef PATCH
 #include "daisy_patch.h"
+#elif defined POD
+#include "daisy_pod.h"
+#elif defined PATCHSM
+#include "daisy_patch_sm.h"
 #else
 #include "daisy_seed.h"
 #endif
@@ -79,6 +83,10 @@ using namespace std;
 
 #ifdef PATCH
 static daisy::DaisyPatch hw;
+#elif defined POD
+static daisy::DaisyPod hw; 
+#elif defined PATCHSM
+static daisy::patch_sm::DaisyPatchSM hw; 
 #else
 static daisy::DaisySeed hw;
 #endif
@@ -97,23 +105,21 @@ static void AudioCallback(daisy::AudioHandle::InputBuffer in, daisy::AudioHandle
     control_UI->update();
     
     // DSP processing
-    DSP->compute(count, static_cast<float**>(in), out);
+    DSP->compute(count, const_cast<float**>(in), out);
 }
 
 int main(void)
 {
     // initialize seed hardware and daisysp modules
-#ifndef PATCH
-    hw.Configure();
-#endif
     hw.Init();
     
     // allocate DSP
 #ifdef POLY
     int nvoices = 0;
     bool midi_sync = false;
+    bool midi = false;
     DSP = new mydsp();
-    MidiMeta::analyse(DSP, midi_sync, nvoices);
+    MidiMeta::analyse(DSP, midi, midi_sync, nvoices);
     DSP = new mydsp_poly(DSP, nvoices, true, true);
 #else
     DSP = new mydsp();
@@ -126,19 +132,22 @@ int main(void)
     DSP->init(MY_SAMPLE_RATE);
     
     // setup controllers
-#ifdef PATCH
+#if (defined PATCH) || (defined POD)
     control_UI = new DaisyControlUI(&hw.seed, MY_SAMPLE_RATE/MY_BUFFER_SIZE);
-#else
-    control_UI = new DaisyControlUI(&hw, MY_SAMPLE_RATE/MY_BUFFER_SIZE);
-#endif
     DSP->buildUserInterface(control_UI);
-    
+    hw.StartAdc();
+#elif defined (PATCHSM)
+    control_UI = new DaisyControlUI(&hw, MY_SAMPLE_RATE/MY_BUFFER_SIZE);
+    DSP->buildUserInterface(control_UI);
+#else
+    //initialize UI for seed
+    control_UI = new DaisyControlUI(&hw, MY_SAMPLE_RATE/MY_BUFFER_SIZE);
+    DSP->buildUserInterface(control_UI);
     // start ADC
     hw.adc.Start();
-    
+#endif
     // define and start callback
     hw.StartAudio(AudioCallback);
-    
 #ifdef MIDICTRL
     daisy_midi midi_handler;
     MidiUI midi_interface(&midi_handler);

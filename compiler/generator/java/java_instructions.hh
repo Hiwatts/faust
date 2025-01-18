@@ -4,16 +4,16 @@
     Copyright (C) 2003-2018 GRAME, Centre National de Creation Musicale
     ---------------------------------------------------------------------
     This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation; either version 2.1 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+    GNU Lesser General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
+    You should have received a copy of the GNU Lesser General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -22,7 +22,7 @@
 #ifndef _JAVA_INSTRUCTIONS_H
 #define _JAVA_INSTRUCTIONS_H
 
-using namespace std;
+#include <iostream>
 
 #include "text_instructions.hh"
 #include "typing_instructions.hh"
@@ -33,8 +33,8 @@ class JAVAInstVisitor : public TextInstVisitor {
      Global functions names table as a static variable in the visitor
      so that each function prototype is generated as most once in the module.
      */
-    static map<string, bool>   gFunctionSymbolTable;
-    static map<string, string> gMathLibTable;
+    static std::map<std::string, bool>        gFunctionSymbolTable;
+    static std::map<std::string, std::string> gMathLibTable;
 
     TypingVisitor fTypingVisitor;
 
@@ -110,7 +110,7 @@ class JAVAInstVisitor : public TextInstVisitor {
 
     virtual ~JAVAInstVisitor() {}
 
-    string createVarAccess(string varname)
+    std::string createVarAccess(const std::string& varname)
     {
         if (strcmp(ifloat(), "float") == 0) {
             return "new FaustVarAccess() {\n"
@@ -143,14 +143,14 @@ class JAVAInstVisitor : public TextInstVisitor {
 
     virtual void visit(AddMetaDeclareInst* inst)
     {
-        *fOut << "ui_interface.declare(\"" << inst->fZone << "\", \"" << inst->fKey << "\", \"" << inst->fValue
-              << "\")";
+        *fOut << "ui_interface.declare(\"" << inst->fZone << "\", \"" << inst->fKey << "\", \""
+              << inst->fValue << "\")";
         EndLine();
     }
 
     virtual void visit(OpenboxInst* inst)
     {
-        string name;
+        std::string name;
         switch (inst->fOrient) {
             case OpenboxInst::kVerticalBox:
                 name = "ui_interface.openVerticalBox(";
@@ -174,7 +174,7 @@ class JAVAInstVisitor : public TextInstVisitor {
 
     virtual void visit(AddButtonInst* inst)
     {
-        string name;
+        std::string name;
         if (inst->fType == AddButtonInst::kDefaultButton) {
             name = "ui_interface.addButton(";
         } else {
@@ -186,7 +186,7 @@ class JAVAInstVisitor : public TextInstVisitor {
 
     virtual void visit(AddSliderInst* inst)
     {
-        string name;
+        std::string name;
         switch (inst->fType) {
             case AddSliderInst::kHorizontal:
                 name = "ui_interface.addHorizontalSlider(";
@@ -198,15 +198,15 @@ class JAVAInstVisitor : public TextInstVisitor {
                 name = "ui_interface.addNumEntry(";
                 break;
         }
-        *fOut << name << quote(inst->fLabel) << ", " << createVarAccess(inst->fZone) << ", " << checkReal(inst->fInit)
-              << ", " << checkReal(inst->fMin) << ", " << checkReal(inst->fMax) << ", " << checkReal(inst->fStep)
-              << ")";
+        *fOut << name << quote(inst->fLabel) << ", " << createVarAccess(inst->fZone) << ", "
+              << checkReal(inst->fInit) << ", " << checkReal(inst->fMin) << ", "
+              << checkReal(inst->fMax) << ", " << checkReal(inst->fStep) << ")";
         EndLine();
     }
 
     virtual void visit(AddBargraphInst* inst)
     {
-        string name;
+        std::string name;
         switch (inst->fType) {
             case AddBargraphInst::kHorizontal:
                 name = "ui_interface.addHorizontalBargraph(";
@@ -215,31 +215,37 @@ class JAVAInstVisitor : public TextInstVisitor {
                 name = "ui_interface.addVerticalBargraph(";
                 break;
         }
-        *fOut << name << quote(inst->fLabel) << ", " << createVarAccess(inst->fZone) << ", " << checkReal(inst->fMin)
-              << ", " << checkReal(inst->fMax) << ")";
+        *fOut << name << quote(inst->fLabel) << ", " << createVarAccess(inst->fZone) << ", "
+              << checkReal(inst->fMin) << ", " << checkReal(inst->fMax) << ")";
         EndLine();
+    }
+
+    virtual void visit(AddSoundfileInst* inst)
+    {
+        // Not supported for now
+        throw faustexception("ERROR : 'soundfile' primitive not yet supported for JAVA\n");
     }
 
     virtual void visit(LabelInst* inst) {}
 
     virtual void visit(DeclareVarInst* inst)
     {
-        if (inst->fAddress->getAccess() & Address::kStaticStruct) {
+        if (inst->fAddress->isStaticStruct()) {
             *fOut << "static ";
         }
 
         ArrayTyped* array_typed = dynamic_cast<ArrayTyped*>(inst->fType);
         if (array_typed && array_typed->fSize > 1) {
-            string type = fTypeManager->fTypeDirectTable[array_typed->fType->getType()];
+            std::string type = fTypeManager->fTypeDirectTable[array_typed->fType->getType()];
             if (inst->fValue) {
-                *fOut << type << " " << inst->fAddress->getName() << "[] = ";
+                *fOut << type << " " << inst->getName() << "[] = ";
                 inst->fValue->accept(this);
             } else {
-                *fOut << type << " " << inst->fAddress->getName() << "[] = new " << type << "[" << array_typed->fSize
-                      << "]";
+                *fOut << type << " " << inst->getName() << "[] = new " << type << "["
+                      << array_typed->fSize << "]";
             }
         } else {
-            *fOut << fTypeManager->generateType(inst->fType, inst->fAddress->getName());
+            *fOut << fTypeManager->generateType(inst->fType, inst->getName());
             if (inst->fValue) {
                 *fOut << " = ";
                 inst->fValue->accept(this);
@@ -258,7 +264,8 @@ class JAVAInstVisitor : public TextInstVisitor {
             gFunctionSymbolTable[inst->fName] = true;
         }
 
-        // Do not declare Math library functions, they are defined in java.lang.Math and used in a polymorphic way.
+        // Do not declare Math library functions, they are defined in java.lang.Math and used in a
+        // polymorphic way.
         if (gMathLibTable.find(inst->fName) != gMathLibTable.end()) {
             return;
         }
@@ -427,7 +434,7 @@ class JAVAInstVisitor : public TextInstVisitor {
                     *fOut << ")?1:0)";
                     break;
                 default:
-                    printf("visitor.fCurType %d\n", fTypingVisitor.fCurType);
+                    std::cerr << "visitor.fCurType " << fTypingVisitor.fCurType << std::endl;
                     faustassert(false);
                     break;
             }
@@ -448,7 +455,7 @@ class JAVAInstVisitor : public TextInstVisitor {
                     *fOut << ")?1.f:0.f)";
                     break;
                 default:
-                    printf("visitor.fCurType %d\n", fTypingVisitor.fCurType);
+                    std::cerr << "visitor.fCurType " << fTypingVisitor.fCurType << std::endl;
                     faustassert(false);
                     break;
             }
@@ -460,8 +467,9 @@ class JAVAInstVisitor : public TextInstVisitor {
 
     virtual void visit(FunCallInst* inst)
     {
-        string fun_name =
-            (gMathLibTable.find(inst->fName) != gMathLibTable.end()) ? gMathLibTable[inst->fName] : inst->fName;
+        std::string fun_name = (gMathLibTable.find(inst->fName) != gMathLibTable.end())
+                                   ? gMathLibTable[inst->fName]
+                                   : inst->fName;
         generateFunCall(inst, fun_name);
     }
 

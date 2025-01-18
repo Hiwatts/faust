@@ -4,16 +4,16 @@
     Copyright (C) 2003-2018 GRAME, Centre National de Creation Musicale
     ---------------------------------------------------------------------
     This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation; either version 2.1 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+    GNU Lesser General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
+    You should have received a copy of the GNU Lesser General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -24,14 +24,17 @@
 #include <stdlib.h>
 
 #include "exception.hh"
+#include "faust/export.h"
 #include "global.hh"
 #include "tlib.hh"
+
+using namespace std;
 
 // Declaration of implementation
 static Tree calcDeBruijn2Sym(Tree t);
 static Tree substitute(Tree t, int n, Tree id);
 static Tree calcsubstitute(Tree t, int level, Tree id);
-Tree liftn(Tree t, int threshold);
+Tree        liftn(Tree t, int threshold);
 static Tree calcliftn(Tree t, int threshold);
 
 // Tree	NOVAR = tree("NOVAR");
@@ -54,7 +57,8 @@ bool isRec(Tree t, Tree& body)
 Tree ref(int level)
 {
     faustassert(level > 0);
-    return tree(gGlobal->DEBRUIJNREF, tree(level));  // reference to enclosing recursive tree starting from 1
+    return tree(gGlobal->DEBRUIJNREF,
+                tree(level));  // reference to enclosing recursive tree starting from 1
 }
 
 bool isRef(Tree t, int& level)
@@ -80,7 +84,7 @@ Tree rec(Tree var, Tree body)
     return t;
 }
 
-bool isRec(Tree t, Tree& var, Tree& body)
+bool LIBFAUST_API isRec(Tree t, Tree& var, Tree& body)
 {
     if (isTree(t, gGlobal->SYMREC, var)) {
         body = t->getProperty(gGlobal->RECDEF);
@@ -101,9 +105,9 @@ bool isRef(Tree t, Tree& v)
 }
 
 //-----------------------------------------------------------------------------------------
-// L'aperture d'un arbre est la plus profonde reference de Bruijn qu'il contienne.
-// Les references symboliques compte pour zero ce qui veut dire qu'un arbre d'aperture
-// 0 ne compte aucun reference de bruijn libres.
+// The aperture of a tree is the deepest deBruijn reference it contains.
+// Symbolic references count as zero which means that a tree with aperture
+// 0 has no free deBruijn references.
 
 int CTree::calcTreeAperture(const Node& n, const tvec& br)
 {
@@ -126,7 +130,9 @@ int CTree::calcTreeAperture(const Node& n, const tvec& br)
         tvec::const_iterator b  = br.begin();
         tvec::const_iterator z  = br.end();
         while (b != z) {
-            if ((*b)->aperture() > rc) rc = (*b)->aperture();
+            if ((*b)->aperture() > rc) {
+                rc = (*b)->aperture();
+            }
             ++b;
         }
         return rc;
@@ -140,7 +146,7 @@ Tree lift(Tree t)
 
 void printSignal(Tree sig, FILE* out, int prec = 0);
 
-// lift (t) : increase free references by 1
+// lift(t) : increase free references by 1
 
 #if 0
 static Tree _liftn(Tree t, int threshold);
@@ -188,14 +194,12 @@ static Tree calcliftn(Tree t, int threshold)
         return rec(liftn(u, threshold + 1));
 
     } else {
-        int n1 = t->arity();
-        // Tree	br[4];
+        int  n1 = t->arity();
         tvec br(n1);
         for (int i = 0; i < n1; i++) {
             br[i] = liftn(t->branch(i), threshold);
         }
-        // return CTree::make(t->node(), n, br);
-        return CTree::make(t->node(), br);
+        return tree(t->node(), br);
     }
 }
 
@@ -228,19 +232,17 @@ static Tree calcDeBruijn2Sym(Tree t)
         return t;
 
     } else if (isRef(t, i)) {
-        throw faustexception("ERROR : one Bruijn reference found !\n");
+        cerr << "ASSERT : one Bruijn reference found\n";
+        faustassert(false);
         return t;
 
     } else {
-        // Tree	br[4];
         int  a = t->arity();
         tvec br(a);
-
         for (int i1 = 0; i1 < a; i1++) {
             br[i1] = deBruijn2Sym(t->branch(i1));
         }
-        // return CTree::make(t->node(), a, br);
-        return CTree::make(t->node(), br);
+        return tree(t->node(), br);
     }
 }
 
@@ -262,18 +264,20 @@ static Tree calcsubstitute(Tree t, int level, Tree id)
     Tree body;
 
     if (t->aperture() < level) {
-        //		fprintf(stderr, "aperture %d < level %d !!\n", t->aperture(), level);
+        // fprintf(stderr, "aperture %d < level %d !!\n", t->aperture(), level);
         return t;
     }
-    if (isRef(t, l)) return (l == level) ? id : t;
-    if (isRec(t, body)) return rec(substitute(body, level + 1, id));
+    if (isRef(t, l)) {
+        return (l == level) ? id : t;
+    }
+    if (isRec(t, body)) {
+        return rec(substitute(body, level + 1, id));
+    }
 
-    int ar = t->arity();
-    // Tree	br[4];
+    int  ar = t->arity();
     tvec br(ar);
     for (int i = 0; i < ar; i++) {
         br[i] = substitute(t->branch(i), level, id);
     }
-    // return CTree::make(t->node(), ar, br);
-    return CTree::make(t->node(), br);
+    return tree(t->node(), br);
 }

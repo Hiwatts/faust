@@ -4,7 +4,7 @@ Several programs and tools are available to test the dynamic compilation chain, 
 
 ## dynamic-faust
 
-The **dynamic-faust** tool uses the dynamic compilation chain (based on the LLVM backend), and compiles a Faust DSP source to a LLVM IR (.ll), bicode (.bc), machine code (.mc) or object code (.o) output file. CPU cross-compilation can be done using the `-target` option. The best compilation options for the native CPU (at Faust compiler level) can be discovered using the `-opt` option. 
+The **dynamic-faust** tool uses the dynamic compilation chain (based on the LLVM backend), and compiles a Faust DSP source to a LLVM IR (.ll), bicode (.bc), machine code (.mc) or object code (.o) output file. CPU cross-compilation can be done using the `-target` option. The best compilation options for the native CPU (at Faust compiler level) can be discovered using the `-opt` option. When compiling to object code, the resulting file can be used with the appropriate [llvm-dsp-adapter.h](https://github.com/grame-cncm/faust/blob/master-dev/architecture/faust/dsp/llvm-dsp-adapter.h) or [llvm-dsp-adapter.1h](https://github.com/grame-cncm/faust/blob/master-dev/architecture/faust/dsp/llvm-dsp-adapter1.h) wrapper file to obtain a ready to use DSP object to be added in the final project. 
 
 `dynamic-faust [-target xxx] [-opt native|generic] [-o foo.ll|foo.bc|foo.mc|foo.o] [additional Faust options (-vec -vs 8...)] foo.dsp`
 
@@ -86,7 +86,7 @@ Here are the available options:
 - `-httpd to activate HTTPD control`
 - `-resample' to resample soundfiles to the audio driver sample rate`
 
-Additional Faust compiler options can be given. Note that the Interpreter backend can be launched in *trace* mode, so that various statistics on the running code are collected and displayed while running and/or when closing the application. For developers, the *FAUST_INTERP_TRACE* environment variable can be set to values from 1 to 7 (see the **interp-trace** tool). 
+Additional Faust compiler options can be given. Note that the Interpreter backend can be launched in *trace* mode, so that various statistics on the running code are collected and displayed while running and/or when closing the application. For developers, the *FAUST_INTERP_TRACE* environment variable can be set to values from 1 to 7 (see the [interp-tracer](#interp-tracer) tool). 
 
 ## poly-dynamic-jack-gtk
 
@@ -122,35 +122,41 @@ Here are the available options:
 
 **Note** : In Faust, the interval calculation system on signals is supposed to detect possible problematic computations at compile time, and refuse to compile the corresponding DSP code. But **since the interval calculation is currently quite imperfect**, it can misbehave and generate possible problematic code, that will possibly crash at runtime. 
 
-The **interp-tracer** tool runs and instruments the compiled program (precisely the `compute` method) using the Interpreter backend. Various statistics on the code are collected and displayed while running and/or when closing the application, typically FP_SUBNORMAL, FP_INFINITE and FP_NAN values, or INTEGER_OVERFLOW, CAST_INT_OVERFLOW and DIV_BY_ZERO operations, or LOAD/STORE errors. 
+The **interp-tracer** tool runs and instruments the compiled program using the Interpreter backend. Various statistics on the code are collected and displayed while running and/or when closing the application, typically FP_SUBNORMAL, FP_INFINITE and FP_NAN values, or INTEGER_OVERFLOW, CAST_INT_OVERFLOW and DIV_BY_ZERO operations, or LOAD/STORE errors. 
 
 - [FP_SUBNORMAL, FP_INFINITE and FP_NAN values](https://www.gnu.org/software/libc/manual/html_node/Floating-Point-Classes.html)(*) are produced when compiling with floating point numbers. 
 - [INTEGER_OVERFLOW](https://en.wikipedia.org/wiki/Integer_overflow) is produced when computing with integer numbers (actually 32 bits Integer supported by the compiler) and producing out-of-range result. They can be a wanted effect like in the implementation of the [no.noise](https://github.com/grame-cncm/faustlibraries/blob/master/noises.lib#L63) generator.
-- [CAST_INT_OVERFLOW](https://frama-c.com/2013/10/09/Overflow-float-integer.html)(*) happen when converting a floating point number back in an integer number (like when using the `int(val)` expression). 
 - DIV_BY_ZERO(*) happens when dividing a number by 0. 
--  LOAD/STORE(*) happens when reading or writing outside of `rdtable` or `rwtable`, or when loading a non initialized value (typically used by the Faust compiler developers to check the generated code). 
+- [CAST_INT_OVERFLOW](https://frama-c.com/2013/10/09/Overflow-float-integer.html)(*) happen when converting a floating point number back in an integer number (like when using the `int(val)` expression). 
+- NEGATIVE_BITSHIFT happen when doing bit shift operation with a right-hand negative value
+- LOAD/STORE(*) happens when reading or writing outside of `rdtable` or `rwtable`, or when loading a non initialized value (typically used by the Faust compiler developers to check the generated code). 
 
 (*) Those errors typically reveal incorrectly written code which must be corrected.
 
-Mode 4 and 5 allow to display the stack trace of the running code when FP_INFINITE, FP_NAN, INTEGER_OVERFLOW, DIV_BY_ZERO, CAST_INT_OVERFLOW and LOAD/STORE errors are produced. 
+Mode 4 and 5 allow to display the stack trace of the running code when FP_INFINITE, FP_NAN, INTEGER_OVERFLOW, DIV_BY_ZERO, CAST_INT_OVERFLOW, NEGATIVE_BITSHIFT and LOAD/STORE errors are produced. 
 
-The `-control` mode allows to check control parameters, by explicitly setting their *min* and *max* values, then running the DSP and setting all controllers (inside their range) in a random way. 
+The `-control` option allows to check control parameters, by explicitly setting their *min* and *max* values, then running the DSP and setting all controllers (inside their range) in a random way. 
 
-Mode 4 up to 7 also check LOAD/STORE errors, mode 7 is typically used by the Faust compiler developers to check the generated code. 
+The `-input` option allows to test effects by sending them an *impulse* then a *noise* test signal on all inputs. 
 
-`interp-tracer [-trace <1-7>] [-control] [-output] [additional Faust options (-ftz xx)] foo.dsp`
+Mode 4 up to 7 also check LOAD/STORE errors, mode 7 is typically used by the Faust compiler developers to check the generated code. Mode 7 prints the program memory layout as `DumpMem-fooXXX.txt` file.
+
+`interp-tracer [-trace <1-6>] [-control] [-output] [-timeout <num>] [additional Faust options (-ftz xx)] foo.dsp`
 
 Here are the available options:
 
  - `-control to activate min/max control check then setting all controllers (inside their range) in a random way`
+ - `-input to test effects with various test signals (impulse, noise)`
  - `-output to print output frames`
+ - ` timeout <num> to stop the application after a given timeout in seconds (default = 10s)`
  - `-trace 1 to collect FP_SUBNORMAL only` 
  - `-trace 2 to collect FP_SUBNORMAL, FP_INFINITE and FP_NAN`
  - `-trace 3 to collect FP_SUBNORMAL, FP_INFINITE, FP_NAN, INTEGER_OVERFLOW, DIV_BY_ZERO and CAST_INT_OVERFLOW`
  - `-trace 4 to collect FP_SUBNORMAL, FP_INFINITE, FP_NAN, INTEGER_OVERFLOW, DIV_BY_ZERO, CAST_INT_OVERFLOW and LOAD/STORE errors, fails at first FP_INFINITE, FP_NAN, CAST_INT_OVERFLOW or LOAD/STORE error`
- - `-trace 5 to collect FP_SUBNORMAL, FP_INFINITE, FP_NAN, INTEGER_OVERFLOW, DIV_BY_ZERO, CAST_INT_OVERFLOW and LOAD/STORE errors, continue after FP_INFINITE, FP_NAN, CAST_INT_OVERFLOW or LOAD/STORE error`
- - `-trace 6 to only check LOAD/STORE errors and continue`
- - `-trace 7 to only check LOAD/STORE errors and exit`
+ - `-trace 5 to collect FP_SUBNORMAL, FP_INFINITE, FP_NAN, INTEGER_OVERFLOW, DIV_BY_ZERO, CAST_INT_OVERFLOW, NEGATIVE_BITSHIFT and LOAD/STORE errors, continue after FP_INFINITE, FP_NAN or CAST_INT_OVERFLOW, fails after LOAD/STORE errors`
+ - `-trace 6 to only check LOAD/STORE errors and exit`
+ 
+ Note that additional Faust compiler options can be used to check specific versions of the generated code. For instance even if the semantics of Faust is always strict, the generated code for `select2` is non-strict by default, and to save CPU, only one branch is computed depending of the condition. The `-sts` option can be used to force both branches to be computed, thus allowing to test both of them for misbehaving behaviours. 
 
 ## faustbench
 
@@ -178,7 +184,7 @@ Here are the available options:
 
 Use `export CXX=/path/to/compiler` before running faustbench to change the C++ compiler, and `export CXXFLAGS=options` to change the C++ compiler options. Additional Faust compiler options can be given.
 
-Using `-single` and additional Faust options (like `-vec -vs 8...`) allows to run a single test with specific options.
+Additional Faust options (like `-mcd 2...`) can be added on the list of all already tested options, to possibly discover a better setup not covered by the standard exploration.
 
 ## faustbench-llvm
 
@@ -203,7 +209,7 @@ Here are the available options:
 - `-ds <factor> to downsample the DSP by a factor (can be 2, 3, 4, 8, 16, 32)`
 - `-filter <filter> for upsampling or downsampling [0..4], 0 means no filtering`
 
-Using `-single` and additional Faust options (like `-vec -vs 8...`) allows to run a single test with specific options.
+Additional Faust options (like `-dlt 0...`) can be added on the list of all already tested options, to possibly discover a better setup not covered by the standard exploration.
 
 ## faustbench-wasm
 

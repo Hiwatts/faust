@@ -5,16 +5,16 @@
     Modified to C# from Java by Mike Oliphant
     ---------------------------------------------------------------------
     This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation; either version 2.1 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+    GNU Lesser General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
+    You should have received a copy of the GNU Lesser General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -22,8 +22,6 @@
 
 #ifndef _CSHARP_INSTRUCTIONS_H
 #define _CSHARP_INSTRUCTIONS_H
-
-using namespace std;
 
 #include "text_instructions.hh"
 #include "typing_instructions.hh"
@@ -34,13 +32,14 @@ class CSharpInstVisitor : public TextInstVisitor {
      Global functions names table as a static variable in the visitor
      so that each function prototype is generated as most once in the module.
      */
-    static map<string, bool>   gFunctionSymbolTable;
-    static map<string, string> gMathLibTable;
+    static std::map<std::string, bool>        gFunctionSymbolTable;
+    static std::map<std::string, std::string> gMathLibTable;
 
    public:
     using TextInstVisitor::visit;
 
-    CSharpInstVisitor(std::ostream* out, int tab = 0) : TextInstVisitor(out, ".", ifloat(), "[]", tab)
+    CSharpInstVisitor(std::ostream* out, int tab = 0)
+        : TextInstVisitor(out, ".", ifloat(), "[]", tab)
     {
         initMathTable();
 
@@ -83,7 +82,7 @@ class CSharpInstVisitor : public TextInstVisitor {
         gMathLibTable["tanhf"]  = "(float)Math.Tanh";
 
         gMathLibTable["remainderf"] = "(float)Math.IEEERemainder";
-        gMathLibTable["rintf"]  = "(float)Math.Round";
+        gMathLibTable["rintf"]      = "(float)Math.Round";
 
         // Additional hyperbolic math functions
         gMathLibTable["acoshf"] = "(float)Math.Acosh";
@@ -92,11 +91,11 @@ class CSharpInstVisitor : public TextInstVisitor {
         gMathLibTable["coshf"]  = "(float)Math.Cosh";
         gMathLibTable["sinhf"]  = "(float)Math.Sinh";
         gMathLibTable["tanhf"]  = "(float)Math.Tanh";
-    
-        gMathLibTable["isnanf"]     = "(float)Math.IsNan";
+
+        gMathLibTable["isnanf"] = "(float)Math.IsNan";
         // Manually implemented
-        gMathLibTable["isinff"]     = "IsInfinityF";
-        gMathLibTable["copysignf"]  = "(float)Math.CopySign";
+        gMathLibTable["isinff"]    = "IsInfinityF";
+        gMathLibTable["copysignf"] = "(float)Math.CopySign";
 
         // Double version
         gMathLibTable["fabs"]  = "Math.Abs";
@@ -123,8 +122,8 @@ class CSharpInstVisitor : public TextInstVisitor {
         gMathLibTable["tanh"]  = "Math.Tanh";
 
         gMathLibTable["remainder"] = "Math.IEEERemainder";
-        gMathLibTable["rint"]  = "Math.Round";
-    
+        gMathLibTable["rint"]      = "Math.Round";
+
         // Additional hyperbolic math functions
         gMathLibTable["acosh"] = "Math.Acosh";
         gMathLibTable["asinh"] = "Math.Asinh";
@@ -132,30 +131,35 @@ class CSharpInstVisitor : public TextInstVisitor {
         gMathLibTable["cosh"]  = "Math.Cosh";
         gMathLibTable["sinh"]  = "Math.Sinh";
         gMathLibTable["tanh"]  = "Math.Tanh";
-    
-        gMathLibTable["isnan"]     = "Math.IsNan";
-        // Manually implemented
-        gMathLibTable["isinf"]     = "IsInfinity";
-        gMathLibTable["copysign"]  = "Math.CopySign";
 
+        gMathLibTable["isnan"] = "Math.IsNan";
+        // Manually implemented
+        gMathLibTable["isinf"]    = "IsInfinity";
+        gMathLibTable["copysign"] = "Math.CopySign";
     }
 
     virtual ~CSharpInstVisitor() {}
 
-    string createVarAccess(string varname)
+    std::string createVarAccess(std::string varname)
     {
         if (strcmp(ifloat(), "float") == 0) {
             return "new FaustVariableAccessor {\n"
-                   "\t\t\t\tID = \"" + varname + "\",\n"
-                   "\t\t\t\tSetValue = delegate(double val) { " + varname + " = (float)val; },\n" +
-                   "\t\t\t\tGetValue = delegate { return " + varname + "; }\n" +
+                   "\t\t\t\tID = \"" +
+                   varname +
+                   "\",\n"
+                   "\t\t\t\tSetValue = delegate(double val) { " +
+                   varname + " = (float)val; },\n" + "\t\t\t\tGetValue = delegate { return " +
+                   varname + "; }\n" +
                    "\t\t\t}\n"
                    "\t\t\t";
         } else {
             return "new FaustVariableAccessor {\n"
-                   "\t\t\t\tID = \"" + varname + "\",\n"
-                   "\t\t\t\tSetValue = delegate(double val) { " + varname + " = val; },\n" +
-                   "\t\t\t\tGetValue = delegate { return " + varname + "; }\n" +
+                   "\t\t\t\tID = \"" +
+                   varname +
+                   "\",\n"
+                   "\t\t\t\tSetValue = delegate(double val) { " +
+                   varname + " = val; },\n" + "\t\t\t\tGetValue = delegate { return " + varname +
+                   "; }\n" +
                    "\t\t\t}\n"
                    "\t\t\t";
         }
@@ -163,7 +167,8 @@ class CSharpInstVisitor : public TextInstVisitor {
 
     virtual void visit(AddMetaDeclareInst* inst)
     {
-        *fOut << "UIDefinition.DeclareElementMetaData(\"" << inst->fZone << "\", \"" << inst->fKey << "\", \"" << inst->fValue << "\")";
+        *fOut << "UIDefinition.DeclareElementMetaData(\"" << inst->fZone << "\", \"" << inst->fKey
+              << "\", \"" << inst->fValue << "\")";
         EndLine();
     }
 
@@ -171,13 +176,18 @@ class CSharpInstVisitor : public TextInstVisitor {
     {
         switch (inst->fOrient) {
             case OpenboxInst::kVerticalBox:
-                *fOut << "UIDefinition.StartBox(new FaustBoxElement(EFaustUIElementType.VerticalBox, " << quote(inst->fName) << "))";
+                *fOut
+                    << "UIDefinition.StartBox(new FaustBoxElement(EFaustUIElementType.VerticalBox, "
+                    << quote(inst->fName) << "))";
                 break;
             case OpenboxInst::kHorizontalBox:
-                *fOut << "UIDefinition.StartBox(new FaustBoxElement(EFaustUIElementType.HorizontalBox, " << quote(inst->fName) << "))";
+                *fOut << "UIDefinition.StartBox(new "
+                         "FaustBoxElement(EFaustUIElementType.HorizontalBox, "
+                      << quote(inst->fName) << "))";
                 break;
             case OpenboxInst::kTabBox:
-                *fOut << "UIDefinition.StartBox(new FaustBoxElement(EFaustUIElementType.TabBox, " << quote(inst->fName) << "))";
+                *fOut << "UIDefinition.StartBox(new FaustBoxElement(EFaustUIElementType.TabBox, "
+                      << quote(inst->fName) << "))";
                 break;
         }
         EndLine();
@@ -192,87 +202,95 @@ class CSharpInstVisitor : public TextInstVisitor {
     virtual void visit(AddButtonInst* inst)
     {
         if (inst->fType == AddButtonInst::kDefaultButton) {
-            *fOut << "UIDefinition.AddElement(new FaustUIVariableElement(EFaustUIElementType.Button, " << quote(inst->fLabel) << ", " << createVarAccess(inst->fZone) << "))";
+            *fOut
+                << "UIDefinition.AddElement(new FaustUIVariableElement(EFaustUIElementType.Button, "
+                << quote(inst->fLabel) << ", " << createVarAccess(inst->fZone) << "))";
         } else {
-            *fOut << "UIDefinition.AddElement(new FaustUIVariableElement(EFaustUIElementType.CheckBox, " << quote(inst->fLabel) << ", " << createVarAccess(inst->fZone) << "))";
+            *fOut << "UIDefinition.AddElement(new "
+                     "FaustUIVariableElement(EFaustUIElementType.CheckBox, "
+                  << quote(inst->fLabel) << ", " << createVarAccess(inst->fZone) << "))";
         }
         EndLine();
     }
 
     virtual void visit(AddSliderInst* inst)
     {
-        string name;
-
+        std::string name;
         switch (inst->fType) {
             case AddSliderInst::kHorizontal:
-                name = "UIDefinition.AddElement(new FaustUIWriteableFloatElement(EFaustUIElementType.HorizontalSlider, ";
+                name =
+                    "UIDefinition.AddElement(new "
+                    "FaustUIWriteableFloatElement(EFaustUIElementType.HorizontalSlider, ";
                 break;
             case AddSliderInst::kVertical:
-                name = "UIDefinition.AddElement(new FaustUIWriteableFloatElement(EFaustUIElementType.VerticalSlider, ";
+                name =
+                    "UIDefinition.AddElement(new "
+                    "FaustUIWriteableFloatElement(EFaustUIElementType.VerticalSlider, ";
                 break;
             case AddSliderInst::kNumEntry:
-                name = "UIDefinition.AddElement(new FaustUIWriteableFloatElement(EFaustUIElementType.NumEntry, ";
+                name =
+                    "UIDefinition.AddElement(new "
+                    "FaustUIWriteableFloatElement(EFaustUIElementType.NumEntry, ";
                 break;
         }
-        *fOut << name << quote(inst->fLabel) << ", " << createVarAccess(inst->fZone) << ", " << checkReal(inst->fInit)
-              << ", " << checkReal(inst->fMin) << ", " << checkReal(inst->fMax) << ", " << checkReal(inst->fStep)
-              << "))";
+        *fOut << name << quote(inst->fLabel) << ", " << createVarAccess(inst->fZone) << ", "
+              << checkReal(inst->fInit) << ", " << checkReal(inst->fMin) << ", "
+              << checkReal(inst->fMax) << ", " << checkReal(inst->fStep) << "))";
         EndLine();
     }
 
     virtual void visit(AddBargraphInst* inst)
     {
-        string name;
-
+        std::string name;
         switch (inst->fType) {
             case AddBargraphInst::kHorizontal:
-                name = "UIDefinition.AddElement(new FaustUIFloatElement(EFaustUIElementType.HorizontalBargraph, ";
+                name =
+                    "UIDefinition.AddElement(new "
+                    "FaustUIFloatElement(EFaustUIElementType.HorizontalBargraph, ";
                 break;
             case AddBargraphInst::kVertical:
-                name = "UIDefinition.AddElement(new FaustUIFloatElement(EFaustUIElementType.VerticalBargraph, ";
+                name =
+                    "UIDefinition.AddElement(new "
+                    "FaustUIFloatElement(EFaustUIElementType.VerticalBargraph, ";
                 break;
         }
-        *fOut << name << quote(inst->fLabel) << ", " << createVarAccess(inst->fZone) << ", " << checkReal(inst->fMin)
-              << ", " << checkReal(inst->fMax) << "))";
+        *fOut << name << quote(inst->fLabel) << ", " << createVarAccess(inst->fZone) << ", "
+              << checkReal(inst->fMin) << ", " << checkReal(inst->fMax) << "))";
         EndLine();
     }
 
     virtual void visit(DeclareVarInst* inst)
     {
-        if (inst->fAddress->getAccess() & Address::kStaticStruct) {
+        if (inst->fAddress->isStaticStruct()) {
             *fOut << "static ";
         }
 
         ArrayTyped* array_typed = dynamic_cast<ArrayTyped*>(inst->fType);
         if (array_typed && array_typed->fSize > 1) {
-            string type = fTypeManager->fTypeDirectTable[array_typed->fType->getType()];
+            std::string type = fTypeManager->fTypeDirectTable[array_typed->fType->getType()];
             if (inst->fValue) {
-                *fOut << type << "[] " << inst->fAddress->getName() << " = ";
+                *fOut << type << "[] " << inst->getName() << " = ";
                 inst->fValue->accept(this);
             } else {
-                *fOut << type << "[] " << inst->fAddress->getName() << " = new " << type << "[" << array_typed->fSize
-                      << "]";
+                *fOut << type << "[] " << inst->getName() << " = new " << type << "["
+                      << array_typed->fSize << "]";
             }
         } else {
-            *fOut << fTypeManager->generateType(inst->fType, inst->fAddress->getName());
+            *fOut << fTypeManager->generateType(inst->fType, inst->getName());
             if (inst->fValue) {
                 *fOut << " = ";
 
                 if (dynamic_cast<BinopInst*>(inst->fValue)) {
-                    TypingVisitor fTypingVisitor;
-                    inst->fValue->accept(&fTypingVisitor);
-
-                    if (fTypingVisitor.fCurType == Typed::kBool) {
+                    Typed::VarType type = TypingVisitor::getType(inst->fValue);
+                    if (type == Typed::kBool) {
                         *fOut << "(";
                     }
-
                     inst->fValue->accept(this);
-
-                    if (fTypingVisitor.fCurType == Typed::kBool) {
+                    if (type == Typed::kBool) {
                         *fOut << "?1:0)";
                     }
                 } else {
-                     inst->fValue->accept(this);
+                    inst->fValue->accept(this);
                 }
             }
         }
@@ -296,7 +314,7 @@ class CSharpInstVisitor : public TextInstVisitor {
 
         // Prototype arguments
         if (inst->fType->fAttribute & FunTyped::kInline) {
-            *fOut << "[MethodImpl(MethodImplOptions.AggressiveInlining)]" << endl;
+            *fOut << "[MethodImpl(MethodImplOptions.AggressiveInlining)]" << std::endl;
         }
 
         if (!(inst->fType->fAttribute & FunTyped::kLocal)) {
@@ -316,7 +334,7 @@ class CSharpInstVisitor : public TextInstVisitor {
     virtual void generateFunDefBody(DeclareFunInst* inst)
     {
         if (inst->fCode->fCode.size() == 0) {
-            *fOut << ");" << endl;  // Pure prototype
+            *fOut << ");" << std::endl;  // Pure prototype
         } else {
             // Function body
             *fOut << ")";
@@ -328,7 +346,7 @@ class CSharpInstVisitor : public TextInstVisitor {
             fTab--;
             back(1, *fOut);
             *fOut << "}";
-            *fOut << endl;
+            *fOut << std::endl;
             tab(fTab, *fOut);
         }
     }
@@ -341,21 +359,20 @@ class CSharpInstVisitor : public TextInstVisitor {
 
     virtual void visit(BinopInst* inst)
     {
-        TypingVisitor fTypingVisitor;
+        Typed::VarType type1 = TypingVisitor::getType(inst->fInst1);
+        Typed::VarType type2 = TypingVisitor::getType(inst->fInst2);
 
-        inst->fInst1->accept(&fTypingVisitor);
-        Typed::VarType type1 = fTypingVisitor.fCurType;
-
-        inst->fInst2->accept(&fTypingVisitor);
-        Typed::VarType type2 = fTypingVisitor.fCurType;
-
-        bool cond1 = needParenthesis(inst, inst->fInst1);
-        bool cond2 = needParenthesis(inst, inst->fInst2);
+        bool cond1 = leftArgNeedsParentheses(inst, inst->fInst1);
+        bool cond2 = rightArgNeedsParentheses(inst, inst->fInst2);
 
         if (type1 != Typed::kBool) {
-            if (cond1) *fOut << "(";
+            if (cond1) {
+                *fOut << "(";
+            }
             inst->fInst1->accept(this);
-            if (cond1) *fOut << ")";
+            if (cond1) {
+                *fOut << ")";
+            }
         } else {
             *fOut << "(";
             inst->fInst1->accept(this);
@@ -367,28 +384,25 @@ class CSharpInstVisitor : public TextInstVisitor {
         *fOut << " ";
 
         if (type2 != Typed::kBool) {
-            if (cond2) *fOut << "(";
+            if (cond2) {
+                *fOut << "(";
+            }
             inst->fInst2->accept(this);
-            if (cond2) *fOut << ")";
+            if (cond2) {
+                *fOut << ")";
+            }
         } else {
             *fOut << "(";
             inst->fInst2->accept(this);
             *fOut << "?1:0)";
         }
-
     }
 
     virtual void visit(Select2Inst* inst)
     {
-        TypingVisitor fTypingVisitor;
-
-        inst->fThen->accept(&fTypingVisitor);
-        Typed::VarType type1 = fTypingVisitor.fCurType;
-
-        inst->fElse->accept(&fTypingVisitor);
-        Typed::VarType type2 = fTypingVisitor.fCurType;
-
-        bool forceInt = (type1 != Typed::kBool) || (type2 != Typed::kBool);
+        Typed::VarType type1    = TypingVisitor::getType(inst->fThen);
+        Typed::VarType type2    = TypingVisitor::getType(inst->fElse);
+        bool           forceInt = (type1 != Typed::kBool) || (type2 != Typed::kBool);
 
         *fOut << "(";
         visitCond(inst->fCond);
@@ -401,6 +415,7 @@ class CSharpInstVisitor : public TextInstVisitor {
         } else {
             inst->fThen->accept(this);
         }
+
         *fOut << " : ";
 
         if (forceInt && (type2 == Typed::kBool)) {
@@ -411,7 +426,7 @@ class CSharpInstVisitor : public TextInstVisitor {
             inst->fElse->accept(this);
         }
 
-        *fOut << ")";        
+        *fOut << ")";
     }
 
     virtual void visitCond(ValueInst* cond)
@@ -419,22 +434,20 @@ class CSharpInstVisitor : public TextInstVisitor {
         *fOut << "(";
 
         cond->accept(this);
+        Typed::VarType type = TypingVisitor::getType(cond);
 
-        TypingVisitor fTypingVisitor;
-        cond->accept(&fTypingVisitor);
-
-        if (fTypingVisitor.fCurType != Typed::kBool)
+        if (type != Typed::kBool) {
             *fOut << "!=0";
-        
-        *fOut << ")";        
+        }
+
+        *fOut << ")";
     }
 
     virtual void visit(::CastInst* inst)
     {
-        TypingVisitor fTypingVisitor;
-        inst->fInst->accept(&fTypingVisitor);
+        Typed::VarType cast_type = TypingVisitor::getType(inst->fInst);
 
-        if (fTypingVisitor.fCurType == Typed::kBool) {
+        if (cast_type == Typed::kBool) {
             if (fTypeManager->generateType(inst->fType) != "bool") {
                 *fOut << "((";
                 inst->fInst->accept(this);
@@ -452,7 +465,7 @@ class CSharpInstVisitor : public TextInstVisitor {
             }
         }
 
-        string type = fTypeManager->generateType(inst->fType);
+        std::string type = fTypeManager->generateType(inst->fType);
         *fOut << "(" << type << ")"
               << "(";
         inst->fInst->accept(this);
@@ -463,8 +476,9 @@ class CSharpInstVisitor : public TextInstVisitor {
 
     virtual void visit(FunCallInst* inst)
     {
-        string fun_name =
-            (gMathLibTable.find(inst->fName) != gMathLibTable.end()) ? gMathLibTable[inst->fName] : inst->fName;
+        std::string fun_name = (gMathLibTable.find(inst->fName) != gMathLibTable.end())
+                                   ? gMathLibTable[inst->fName]
+                                   : inst->fName;
         generateFunCall(inst, fun_name);
     }
 

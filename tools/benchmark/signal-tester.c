@@ -23,9 +23,11 @@
  ************************************************************************/
 
 #include <stdio.h>
+#include <limits.h>
 #include <string.h>
 #include <assert.h>
 
+#include "faust/dsp/libfaust-box-c.h"
 #include "faust/dsp/libfaust-signal-c.h"
 #include "faust/dsp/llvm-dsp-c.h"
 #include "faust/gui/PrintCUI.h"
@@ -40,7 +42,7 @@
  *
  * @return the current runtime sample rate.
  */
-inline Signal getSampleRate()
+inline Signal SR()
 {
     return CsigMin(CsigReal(192000.0), CsigMax(CsigReal(1.0), CsigFConst(kSInt, "fSamplingFreq", "<math.h>")));
 }
@@ -52,7 +54,7 @@ inline Signal getSampleRate()
  *
  * @return the current runtime buffer size.
  */
-inline Signal getBufferSize()
+inline Signal BS()
 {
     return CsigFVar(kSInt, "count", "<math.h>");
 }
@@ -108,37 +110,43 @@ static Signal decimalpart(Signal x)
 
 static Signal phasor(Signal f)
 {
-    return CsigRecursion(decimalpart(CsigAdd(CsigSelf(), CsigDiv(f, getSampleRate()))));
+    return CsigRecursion(decimalpart(CsigAdd(CsigSelf(), CsigDiv(f, SR()))));
 }
 
 static void test1()
 {
+    char error_msg[4096];
+    llvm_dsp_factory* factory = NULL;
+    
     createLibContext();
     {
         Signal signals[2];
         signals[0] = phasor(CsigReal(2000));
         signals[1] = NULL; // Null terminated array
-
-        char error_msg[4096];
-        llvm_dsp_factory* factory = createCDSPFactoryFromSignals("test1", signals, 0, NULL, "", error_msg, -1);
-            
-        if (factory) {
-            
-            llvm_dsp* dsp = createCDSPInstance(factory);
-            assert(dsp);
-            
-            // Render audio
-            render(dsp);
-            
-            // Cleanup
-            deleteCDSPInstance(dsp);
-            deleteCDSPFactory(factory);
-        
-        } else {
-            printf("Cannot create factory : %s\n", error_msg);
-        }
+    
+        printf("%s\n", CprintSignal(signals[0], false, INT_MAX));
+        printf("%s\n", CprintSignal(signals[0], true, INT_MAX));
+     
+        factory = createCDSPFactoryFromSignals("test1", signals, 0, NULL, "", error_msg, -1);
     }
     destroyLibContext();
+    
+    // The factory can be used outside of the createLibContext/destroyLibContext scope
+    if (factory) {
+        
+        llvm_dsp* dsp = createCDSPInstance(factory);
+        assert(dsp);
+        
+        // Render audio
+        render(dsp);
+        
+        // Cleanup
+        deleteCDSPInstance(dsp);
+        deleteCDSPFactory(factory);
+    
+    } else {
+        printf("Cannot create factory : %s\n", error_msg);
+    }
 }
 
 /*
@@ -158,6 +166,9 @@ static Signal osc(Signal f)
 
 static void test2()
 {
+    char error_msg[4096];
+    llvm_dsp_factory* factory = NULL;
+    
     createLibContext();
     {
         Signal signals[3];
@@ -165,26 +176,26 @@ static void test2()
         signals[1] = osc(CsigReal(440.0));
         signals[2] = NULL; // Null terminated array
         
-        char error_msg[4096];
-        llvm_dsp_factory* factory = createCDSPFactoryFromSignals("test2", signals, 0, NULL, "", error_msg, -1);
-        
-        if (factory) {
-            
-            llvm_dsp* dsp = createCDSPInstance(factory);
-            assert(dsp);
-            
-            // Render audio
-            render(dsp);
-            
-            // Cleanup
-            deleteCDSPInstance(dsp);
-            deleteCDSPFactory(factory);
-            
-        } else {
-            printf("Cannot create factory : %s\n", error_msg);
-        }
+        factory = createCDSPFactoryFromSignals("test2", signals, 0, NULL, "", error_msg, -1);
     }
     destroyLibContext();
+    
+    // The factory can be used outside of the createLibContext/destroyLibContext scope
+    if (factory) {
+        
+        llvm_dsp* dsp = createCDSPInstance(factory);
+        assert(dsp);
+        
+        // Render audio
+        render(dsp);
+        
+        // Cleanup
+        deleteCDSPInstance(dsp);
+        deleteCDSPFactory(factory);
+        
+    } else {
+        printf("Cannot create factory : %s\n", error_msg);
+    }
 }
 
 /*
@@ -198,6 +209,9 @@ static void test2()
 
 static void test3()
 {
+    char error_msg[4096];
+    llvm_dsp_factory* factory = NULL;
+
     createLibContext();
     {
         Signal signals[2];
@@ -206,30 +220,108 @@ static void test3()
         signals[0] = CsigMul(freq, CsigMul(gain, CsigInput(0)));
         signals[1] = NULL; // Null terminated array
 
-        char error_msg[4096];
-        llvm_dsp_factory* factory = createCDSPFactoryFromSignals("test3", signals, 0, NULL, "", error_msg, -1);
-        
-        if (factory) {
-            
-            llvm_dsp* dsp = createCDSPInstance(factory);
-            assert(dsp);
-            
-            printf("=================UI=================\n");
-            
-            // Defined in PrintCUI.h
-            metadataCDSPInstance(dsp, &mglue);
-            
-            buildUserInterfaceCDSPInstance(dsp, &uglue);
-            
-            // Cleanup
-            deleteCDSPInstance(dsp);
-            deleteCDSPFactory(factory);
-            
-        } else {
-            printf("Cannot create factory : %s\n", error_msg);
-        }
+        factory = createCDSPFactoryFromSignals("test3", signals, 0, NULL, "", error_msg, -1);
     }
     destroyLibContext();
+    
+    // The factory can be used outside of the createLibContext/destroyLibContext scope
+    if (factory) {
+        
+        llvm_dsp* dsp = createCDSPInstance(factory);
+        assert(dsp);
+        
+        printf("=================UI=================\n");
+        
+        // Defined in PrintCUI.h
+        metadataCDSPInstance(dsp, &mglue);
+        
+        buildUserInterfaceCDSPInstance(dsp, &uglue);
+        
+        // Cleanup
+        deleteCDSPInstance(dsp);
+        deleteCDSPFactory(factory);
+        
+    } else {
+        printf("Cannot create factory : %s\n", error_msg);
+    }
+}
+
+// Compile a complete DSP program to a box expression, then to a source string
+// in several target languages
+static void test4()
+{
+    printf("test4\n");
+    const char* lang[] = { "c", "cpp", "cmajor", "codebox", "csharp", "dlang", "fir", "interp", "jax", "jsfx", "julia", "rust", "wast" };
+    // Context has to be created/destroyed each time
+    for (int i = 0; i < 13; i++) {
+        createLibContext();
+        {
+            int inputs = 0;
+            int outputs = 0;
+            char error_msg[4096];
+            
+            // Create the oscillator
+            Box osc = CDSPToBoxes("FaustDSP", "import(\"stdfaust.lib\"); process = os.osc(440);", 0, NULL, &inputs, &outputs, error_msg);
+            if (!osc) {
+                printf("%s", error_msg);
+                destroyLibContext();
+                return;
+            }
+        
+            // Compile it to the target language
+            char* source = CcreateSourceFromBoxes("FaustDSP", osc, lang[i], 0, NULL, error_msg);
+            if (source) {
+                printf("%s\n", source);
+                freeCMemory(source);
+            } else {
+                printf("%s\n", error_msg);
+            }
+        }
+        destroyLibContext();
+    }
+}
+
+// Compile a complete DSP program to a box expression, then a list of signals, then to a source string
+// in several target languages
+static void test5()
+{
+    printf("test5\n");
+    const char* lang[] = { "c", "cpp", "cmajor", "codebox", "csharp", "dlang", "fir", "interp", "jax", "jsfx", "julia", "rust", "wast" };
+    // Context has to be created/destroyed each time
+    for (int i = 0; i < 13; i++) {
+        createLibContext();
+        {
+            int inputs = 0;
+            int outputs = 0;
+            char error_msg[4096];
+            
+            // Create the oscillator
+            Box osc = CDSPToBoxes("FaustDSP", "import(\"stdfaust.lib\"); process = os.osc(440);", 0, NULL, &inputs, &outputs, error_msg);
+            if (!osc) {
+                printf("%s", error_msg);
+                destroyLibContext();
+                return;
+            }
+            
+            // Compile to signals
+            Signal* signals = CboxesToSignals(osc, error_msg);
+            if (!signals) {
+                printf("%s", error_msg);
+                destroyLibContext();
+                return;
+            }
+            
+            // Compile signals to the target language
+            char* source = CcreateSourceFromSignals("FaustDSP", signals, lang[i], 0, NULL, error_msg);
+            if (source) {
+                printf("%s\n", source);
+                freeCMemory(source);
+            } else {
+                printf("%s\n", error_msg);
+            }
+        }
+        destroyLibContext();
+    }
 }
 
 int main(int argc, char* argv[])
@@ -237,6 +329,8 @@ int main(int argc, char* argv[])
     test1();
     test2();
     test3();
+    test4();
+    test5();
     
     return 0;
 }

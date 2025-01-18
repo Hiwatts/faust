@@ -49,19 +49,22 @@ architecture section is not modified.
 /**
  * Helper code for MIDI meta and polyphonic 'nvoices' parsing.
  */
-struct MidiMeta : public Meta, public std::map<std::string, std::string> {
+struct MidiMeta : public Meta {
     
-    void declare(const char* key, const char* value)
+    std::map<std::string, std::string> fData;
+    
+    void declare(const char* key, const char* value) override
     {
-        (*this)[key] = value;
+        fData[key] = value;
     }
     
     const std::string get(const char* key, const char* def)
     {
-        return (this->find(key) != this->end()) ? (*this)[key] : def;
+        auto it = fData.find(key);
+        return (it != fData.end()) ? it->second : def;
     }
     
-    static void analyse(dsp* mono_dsp, bool& midi_sync, int& nvoices)
+    static void analyse(dsp* mono_dsp, bool& midi, bool& midi_sync, int& nvoices)
     {
         JSONUI jsonui;
         mono_dsp->buildUserInterface(&jsonui);
@@ -78,6 +81,7 @@ struct MidiMeta : public Meta, public std::map<std::string, std::string> {
         MidiMeta meta;
         mono_dsp->metadata(&meta);
         bool found_voices = false;
+        bool found_midi = false;
         // If "options" metadata is used
         std::string options = meta.get("options", "");
         if (options != "") {
@@ -88,6 +92,10 @@ struct MidiMeta : public Meta, public std::map<std::string, std::string> {
                 nvoices = std::atoi(metadata["nvoices"].c_str());
                 found_voices = true;
             }
+            if (metadata.find("midi") != metadata.end()) {
+                midi = (metadata["midi"] == "on" || metadata["midi"] == "1");
+                found_midi = true;
+            }
         }
         // Otherwise test for "nvoices" metadata
         if (!found_voices) {
@@ -95,6 +103,11 @@ struct MidiMeta : public Meta, public std::map<std::string, std::string> {
             nvoices = std::atoi(numVoices.c_str());
         }
         nvoices = std::max<int>(0, nvoices);
+        // Otherwise test for "midi" metadata
+        if (!found_midi) {
+            std::string midiState = meta.get("midi", "off");
+            midi = (midiState == "on" || midiState == "1");
+        }
     #endif
     }
     
@@ -346,13 +359,14 @@ class uiMidiChanPress : public uiMidiTimedItem, public uiConverter {
         {
             FAUSTFLOAT v = *fZone;
             fCache = v;
+            int conv = std::round(fConverter->faust2ui(v));
             if (fChan == 0) {
                 // Send on [0..15] channels on the MIDI layer
                 for (int chan = 0; chan < 16; chan++) {
-                    fMidiOut->chanPress(chan, fConverter->faust2ui(v));
+                    fMidiOut->chanPress(chan, conv);
                 }
             } else {
-                fMidiOut->chanPress(fChan - 1, fConverter->faust2ui(v));
+                fMidiOut->chanPress(fChan - 1, conv);
             }
         }
     
@@ -398,13 +412,14 @@ class uiMidiCtrlChange : public uiMidiTimedItem, public uiConverter {
         {
             FAUSTFLOAT v = *fZone;
             fCache = v;
+            int conv = std::round(fConverter->faust2ui(v));
             if (fChan == 0) {
                 // Send on [0..15] channels on the MIDI layer
                 for (int chan = 0; chan < 16; chan++) {
-                    fMidiOut->ctrlChange(chan, fCtrl, fConverter->faust2ui(v));
+                    fMidiOut->ctrlChange(chan, fCtrl, conv);
                 }
             } else {
-                fMidiOut->ctrlChange(fChan - 1, fCtrl, fConverter->faust2ui(v));
+                fMidiOut->ctrlChange(fChan - 1, fCtrl, conv);
             }
         }
         
@@ -423,6 +438,7 @@ class uiMidiCtrlChange : public uiMidiTimedItem, public uiConverter {
         }
 };
 
+// Use a two segments linear converter
 class uiMidiPitchWheel : public uiMidiTimedItem {
 
     private:
@@ -451,13 +467,14 @@ class uiMidiPitchWheel : public uiMidiTimedItem {
         {
             FAUSTFLOAT v = *fZone;
             fCache = v;
+            int conv = std::round(fConverter.faust2ui(v));
             if (fChan == 0) {
                 // Send on [0..15] channels on the MIDI layer
                 for (int chan = 0; chan < 16; chan++) {
-                    fMidiOut->pitchWheel(chan, fConverter.faust2ui(v));
+                    fMidiOut->pitchWheel(chan, conv);
                 }
             } else {
-                fMidiOut->pitchWheel(fChan - 1, fConverter.faust2ui(v));
+                fMidiOut->pitchWheel(fChan - 1, conv);
             }
         }
         
@@ -509,13 +526,14 @@ class uiMidiKeyOn : public uiMidiTimedItem, public uiConverter {
         {
             FAUSTFLOAT v = *fZone;
             fCache = v;
+            int conv = std::round(fConverter->faust2ui(v));
             if (fChan == 0) {
                 // Send on [0..15] channels on the MIDI layer
                 for (int chan = 0; chan < 16; chan++) {
-                    fMidiOut->keyOn(chan, fKeyOn, fConverter->faust2ui(v));
+                    fMidiOut->keyOn(chan, fKeyOn, conv);
                 }
             } else {
-                fMidiOut->keyOn(fChan - 1, fKeyOn, fConverter->faust2ui(v));
+                fMidiOut->keyOn(fChan - 1, fKeyOn, conv);
             }
         }
         
@@ -561,13 +579,14 @@ class uiMidiKeyOff : public uiMidiTimedItem, public uiConverter {
         {
             FAUSTFLOAT v = *fZone;
             fCache = v;
+            int conv = std::round(fConverter->faust2ui(v));
             if (fChan == 0) {
                 // Send on [0..15] channels on the MIDI layer
                 for (int chan = 0; chan < 16; chan++) {
-                    fMidiOut->keyOn(chan, fKeyOff, fConverter->faust2ui(v));
+                    fMidiOut->keyOff(chan, fKeyOff, conv);
                 }
             } else {
-                fMidiOut->keyOn(fChan - 1, fKeyOff, fConverter->faust2ui(v));
+                fMidiOut->keyOff(fChan - 1, fKeyOff, conv);
             }
         }
         
@@ -613,13 +632,14 @@ class uiMidiKeyPress : public uiMidiTimedItem, public uiConverter {
         {
             FAUSTFLOAT v = *fZone;
             fCache = v;
+            int conv = std::round(fConverter->faust2ui(v));
             if (fChan == 0) {
                 // Send on [0..15] channels on the MIDI layer
                 for (int chan = 0; chan < 16; chan++) {
-                    fMidiOut->keyOn(chan, fKey, fConverter->faust2ui(v));
+                    fMidiOut->keyPress(chan, fKey, conv);
                 }
             } else {
-                fMidiOut->keyOn(fChan - 1, fKey, fConverter->faust2ui(v));
+                fMidiOut->keyPress(fChan - 1, fKey, conv);
             }
         }
         
@@ -792,6 +812,10 @@ class MidiUI : public GUI, public midi, public midi_interface, public MetaDataUI
             // TODO: use shared_ptr based implementation
             if (fDelete) delete fMidiHandler;
         }
+
+#ifdef DAISY_NO_RTTI
+        virtual bool isMidiInterface() const override { return true; }
+#endif
     
         bool run() { return fMidiHandler->startMidi(); }
         void stop() { fMidiHandler->stopMidi(); }

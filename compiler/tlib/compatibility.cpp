@@ -4,16 +4,16 @@
     Copyright (C) 2003-2018 GRAME, Centre National de Creation Musicale
     ---------------------------------------------------------------------
     This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation; either version 2.1 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+    GNU Lesser General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
+    You should have received a copy of the GNU Lesser General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -32,7 +32,7 @@
 
 #if !defined(INT) & !defined(FLOAT)
 #include <windows.h>
-//#include <Winsock2.h>
+// #include <Winsock2.h>
 #else
 #include <io.h>
 #endif
@@ -228,27 +228,38 @@ double remainder(double x, double p)
     hx &= 0x7fffffff;
 
     /* purge off exception values */
-    if ((hp | lp) == 0) return (x * p) / (x * p); /* p = 0 */
-    if ((hx >= 0x7ff00000) ||                     /* x not finite */
-        ((hp >= 0x7ff00000) &&                    /* p is NaN */
-         (((hp - 0x7ff00000) | lp) != 0)))
+    if ((hp | lp) == 0) {
+        return (x * p) / (x * p); /* p = 0 */
+    }
+    if ((hx >= 0x7ff00000) ||  /* x not finite */
+        ((hp >= 0x7ff00000) && /* p is NaN */
+         (((hp - 0x7ff00000) | lp) != 0))) {
         return (x * p) / (x * p);
+    }
 
     static const double zero = 0.0;
-    if (hp <= 0x7fdfffff) x = fmod(x, p + p); /* now x < 2p */
-    if (((hx - hp) | (lx - lp)) == 0) return zero * x;
+    if (hp <= 0x7fdfffff) {
+        x = fmod(x, p + p); /* now x < 2p */
+    }
+    if (((hx - hp) | (lx - lp)) == 0) {
+        return zero * x;
+    }
     x = fabs(x);
     p = fabs(p);
     if (hp < 0x00200000) {
         if (x + x > p) {
             x -= p;
-            if (x + x >= p) x -= p;
+            if (x + x >= p) {
+                x -= p;
+            }
         }
     } else {
         p_half = 0.5 * p;
         if (x > p_half) {
             x -= p;
-            if (x >= p_half) x -= p;
+            if (x >= p_half) {
+                x -= p;
+            }
         }
     }
     GET_HIGH_WORD(hx, x);
@@ -259,13 +270,13 @@ double remainder(double x, double p)
 
 #else  // Linux
 
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
-#include <limits.h>
 void getFaustPathname(char* str, unsigned int size)
 {
-    char buff[PATH_MAX];
-    ssize_t len = ::readlink("/proc/self/exe", buff, sizeof(buff)-1);
+    char    buff[PATH_MAX];
+    ssize_t len = ::readlink("/proc/self/exe", buff, sizeof(buff) - 1);
     if (len != -1) {
         buff[len] = '\0';
         strncpy(str, buff, len);

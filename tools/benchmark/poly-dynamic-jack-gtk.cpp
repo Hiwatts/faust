@@ -76,6 +76,9 @@ int main(int argc, char* argv[])
     char filename[256];
     char rcfilename[256];
     char* home = getenv("HOME");
+    int nvoices = 0;
+    bool is_midi = false;
+    bool midi_sync = false;
     
     snprintf(name, 255, "%s", basename(argv[0]));
     snprintf(filename, 255, "%s", basename(argv[argc-1]));
@@ -83,12 +86,10 @@ int main(int argc, char* argv[])
     
     bool is_llvm = isopt(argv, "-llvm");
     bool is_interp = isopt(argv, "-interp");
-    bool is_midi = isopt(argv, "-midi");
     bool is_osc = isopt(argv, "-osc");
     bool is_httpd = isopt(argv, "-httpd");
     bool is_resample = isopt(argv, "-resample");
     bool is_double = isopt(argv, "-double");
-    int nvoices = lopt(argv, "-nvoices", -1);
     
     malloc_memory_manager manager;
     
@@ -105,7 +106,7 @@ int main(int argc, char* argv[])
     }
     
     dsp_poly_factory* factory = nullptr;
-    dsp_poly* DSP = nullptr;
+    dsp* DSP = nullptr;
     MidiUI* midiinterface = nullptr;
     httpdUI* httpdinterface = nullptr;
     GUI* oscinterface = nullptr;
@@ -127,7 +128,12 @@ int main(int argc, char* argv[])
             || (string(argv[i]) == "-httpd")
             || (string(argv[i]) == "-resample")) {
             continue;
-        } else if (string(argv[i]) == "-nvoices") {
+        } else if ((string(argv[i]) == "-nvoices")
+                   || (string(argv[i]) == "-port")
+                   || (string(argv[i]) == "-outport")
+                   || (string(argv[i]) == "-errport")
+                   || (string(argv[i]) == "-desthost")
+                   || (string(argv[i]) == "-xmit")) {
             i++;
             continue;
         }
@@ -137,11 +143,6 @@ int main(int argc, char* argv[])
     cout << endl;
     
     argv1[argc1] = nullptr;  // NULL terminated argv
-    
-    if (nvoices <= 0) {
-        cout << "Cannot start polyphonic with 0 voice\n";
-        exit(EXIT_FAILURE);
-    }
     
     if (is_llvm) {
         cout << "Using LLVM backend" << endl;
@@ -210,6 +211,19 @@ int main(int argc, char* argv[])
         exit(EXIT_FAILURE);
     }
     
+    // Before reading the -nvoices and -midi parameters
+    DSP = factory->createDSPInstance();
+    if (!DSP) {
+        cerr << "Cannot create instance "<< endl;
+        exit(EXIT_FAILURE);
+    }
+    MidiMeta::analyse(DSP, is_midi, midi_sync, nvoices);
+    delete (DSP);
+    
+    // Possibly update the state read in "options" with command line parameters
+    nvoices = lopt(argv, "-nvoices", nvoices);
+    is_midi = isopt(argv, "-midi") || is_midi;
+    
     //factory->setMemoryManager(&manager);  // causes crash in -fm mode
     DSP = factory->createPolyDSPInstance(nvoices, true, true, is_double);
     if (!DSP) {
@@ -255,8 +269,8 @@ int main(int argc, char* argv[])
         DSP->buildUserInterface(oscinterface);
     }
    
+    rt_midi midi_handler(name);
     if (is_midi) {
-        rt_midi midi_handler(name);
         midiinterface = new MidiUI(&midi_handler);
         DSP->buildUserInterface(midiinterface);
         cout << "MIDI is on" << endl;

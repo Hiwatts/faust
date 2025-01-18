@@ -4,16 +4,16 @@
     Copyright (C) 2021 GRAME, Centre National de Creation Musicale
     ---------------------------------------------------------------------
     This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation; either version 2.1 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+    GNU Lesser General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
+    You should have received a copy of the GNU Lesser General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -24,18 +24,16 @@
 
 #include <string>
 
-#include "text_instructions.hh"
 #include "struct_manager.hh"
-
-using namespace std;
+#include "text_instructions.hh"
 
 // Visitor used to initialize array fields into the DSP structure
 struct JuliaInitFieldsVisitor : public DispatchVisitor {
     std::ostream* fOut;
     int           fTab;
-    
+
     JuliaInitFieldsVisitor(std::ostream* out, int tab = 0) : fOut(out), fTab(tab) {}
-    
+
     virtual void visit(DeclareVarInst* inst)
     {
         ArrayTyped* array_type = dynamic_cast<ArrayTyped*>(inst->fType);
@@ -50,16 +48,16 @@ struct JuliaInitFieldsVisitor : public DispatchVisitor {
             }
         }
     }
-    
+
     virtual void visit(NamedAddress* named)
     {
         // kStaticStruct are actually merged in the main DSP
-        if (named->getAccess() & Address::kStruct || named->getAccess() & Address::kStaticStruct) {
+        if (named->isStruct() || named->isStaticStruct()) {
             *fOut << "dsp.";
         }
         *fOut << named->fName;
     }
-    
+
     static void ZeroInitializer(std::ostream* fOut, Typed* typed)
     {
         ArrayTyped* array_type = dynamic_cast<ArrayTyped*>(typed);
@@ -70,9 +68,8 @@ struct JuliaInitFieldsVisitor : public DispatchVisitor {
             *fOut << "zeros(T, " << array_type->fSize << ")";
         }
     }
-    
+
     // Needed for waveforms
-    
     virtual void visit(Int32ArrayNumInst* inst)
     {
         char sep = '[';
@@ -82,7 +79,7 @@ struct JuliaInitFieldsVisitor : public DispatchVisitor {
         }
         *fOut << ']';
     }
-    
+
     virtual void visit(FloatArrayNumInst* inst)
     {
         char sep = '[';
@@ -92,7 +89,7 @@ struct JuliaInitFieldsVisitor : public DispatchVisitor {
         }
         *fOut << ']';
     }
-    
+
     virtual void visit(DoubleArrayNumInst* inst)
     {
         char sep = '[';
@@ -102,37 +99,37 @@ struct JuliaInitFieldsVisitor : public DispatchVisitor {
         }
         *fOut << ']';
     }
-    
 };
 
 class JuliaInstVisitor : public TextInstVisitor {
    private:
-     
     /*
      Global functions names table as a static variable in the visitor
      so that each function prototype is generated as most once in the module.
      */
-    static map<string, bool> gFunctionSymbolTable;
+    static std::map<std::string, bool> gFunctionSymbolTable;
 
     // Polymorphic math functions
-    map<string, string> gPolyMathLibTable;
-    
+    std::map<std::string, std::string> gPolyMathLibTable;
+
     bool fMutateFun;
-    
-    string cast2FAUSTFLOAT(const string& str) { return "FAUSTFLOAT(" + str + ")"; }
-    
+
+    std::string cast2FAUSTFLOAT(const std::string& str) { return "FAUSTFLOAT(" + str + ")"; }
+
    public:
     using TextInstVisitor::visit;
 
-    JuliaInstVisitor(std::ostream* out, const string& struct_name, int tab = 0, bool mutate_fun = false)
-        : TextInstVisitor(out, ".", new JuliaStringTypeManager(xfloat(), "*", struct_name), tab), fMutateFun(mutate_fun)
+    JuliaInstVisitor(std::ostream* out, const std::string& struct_name, int tab = 0,
+                     bool mutate_fun = false)
+        : TextInstVisitor(out, ".", new JuliaStringTypeManager(xfloat(), "*", struct_name), tab),
+          fMutateFun(mutate_fun)
     {
         // Mark all math.h functions as generated...
         gFunctionSymbolTable["abs"] = true;
-    
+
         gFunctionSymbolTable["max_i"] = true;
         gFunctionSymbolTable["min_i"] = true;
-        
+
         gFunctionSymbolTable["max_f"] = true;
         gFunctionSymbolTable["min_f"] = true;
 
@@ -163,7 +160,7 @@ class JuliaInstVisitor : public TextInstVisitor {
         gFunctionSymbolTable["sinf"]       = true;
         gFunctionSymbolTable["sqrtf"]      = true;
         gFunctionSymbolTable["tanf"]       = true;
-    
+
         // Hyperbolic
         gFunctionSymbolTable["acoshf"] = true;
         gFunctionSymbolTable["asinhf"] = true;
@@ -193,12 +190,12 @@ class JuliaInstVisitor : public TextInstVisitor {
         gFunctionSymbolTable["sin"]       = true;
         gFunctionSymbolTable["sqrt"]      = true;
         gFunctionSymbolTable["tan"]       = true;
-    
+
         // Hyperbolic
         gFunctionSymbolTable["acosh"] = true;
         gFunctionSymbolTable["asinh"] = true;
         gFunctionSymbolTable["atanh"] = true;
-        gFunctionSymbolTable["coshf"]  = true;
+        gFunctionSymbolTable["coshf"] = true;
         gFunctionSymbolTable["sinh"]  = true;
         gFunctionSymbolTable["tanh"]  = true;
 
@@ -223,7 +220,7 @@ class JuliaInstVisitor : public TextInstVisitor {
         gFunctionSymbolTable["sinl"]       = true;
         gFunctionSymbolTable["sqrtl"]      = true;
         gFunctionSymbolTable["tanl"]       = true;
-    
+
         // Hyperbolic
         gFunctionSymbolTable["acoshl"] = true;
         gFunctionSymbolTable["asinhl"] = true;
@@ -231,7 +228,7 @@ class JuliaInstVisitor : public TextInstVisitor {
         gFunctionSymbolTable["coshl"]  = true;
         gFunctionSymbolTable["sinhl"]  = true;
         gFunctionSymbolTable["tanhl"]  = true;
-   
+
         // Polymath mapping int version
         gPolyMathLibTable["abs"]   = "abs";
         gPolyMathLibTable["max_i"] = "max";
@@ -263,19 +260,19 @@ class JuliaInstVisitor : public TextInstVisitor {
         gPolyMathLibTable["sinf"]       = "sin";
         gPolyMathLibTable["sqrtf"]      = "sqrt";
         gPolyMathLibTable["tanf"]       = "tan";
-                             
+
         // Hyperbolic
-        gPolyMathLibTable["acoshf"]     = "acosh";
-        gPolyMathLibTable["asinhf"]     = "asinh";
-        gPolyMathLibTable["atanhf"]     = "atanh";
-        gPolyMathLibTable["coshf"]      = "cosh";
-        gPolyMathLibTable["sinhf"]      = "sinh";
-        gPolyMathLibTable["tanhf"]      = "tanh";
-    
-        gPolyMathLibTable["isnanf"]     = "isnan";
-        gPolyMathLibTable["isinff"]     = "isinf";
-        gPolyMathLibTable["copysignf"]  = "copysign";
-        
+        gPolyMathLibTable["acoshf"] = "acosh";
+        gPolyMathLibTable["asinhf"] = "asinh";
+        gPolyMathLibTable["atanhf"] = "atanh";
+        gPolyMathLibTable["coshf"]  = "cosh";
+        gPolyMathLibTable["sinhf"]  = "sinh";
+        gPolyMathLibTable["tanhf"]  = "tanh";
+
+        gPolyMathLibTable["isnanf"]    = "isnan";
+        gPolyMathLibTable["isinff"]    = "isinf";
+        gPolyMathLibTable["copysignf"] = "copysign";
+
         // Polymath mapping double version
         gPolyMathLibTable["max_"] = "max";
         gPolyMathLibTable["min_"] = "min";
@@ -302,18 +299,18 @@ class JuliaInstVisitor : public TextInstVisitor {
         gPolyMathLibTable["sin"]       = "sin";
         gPolyMathLibTable["sqrt"]      = "sqrt";
         gPolyMathLibTable["tan"]       = "tan";
-    
-        // Hyperbolic
-        gPolyMathLibTable["acosh"]     = "acosh";
-        gPolyMathLibTable["asinh"]     = "asinh";
-        gPolyMathLibTable["atanh"]     = "atanh";
-        gPolyMathLibTable["cosh"]      = "cosh";
-        gPolyMathLibTable["sinh"]      = "sinh";
-        gPolyMathLibTable["tanh"]      = "tanh";
 
-        gPolyMathLibTable["isnan"]     = "isnan";
-        gPolyMathLibTable["isinf"]     = "isinf";
-        gPolyMathLibTable["copysign"]  = "copysign";
+        // Hyperbolic
+        gPolyMathLibTable["acosh"] = "acosh";
+        gPolyMathLibTable["asinh"] = "asinh";
+        gPolyMathLibTable["atanh"] = "atanh";
+        gPolyMathLibTable["cosh"]  = "cosh";
+        gPolyMathLibTable["sinh"]  = "sinh";
+        gPolyMathLibTable["tanh"]  = "tanh";
+
+        gPolyMathLibTable["isnan"]    = "isnan";
+        gPolyMathLibTable["isinf"]    = "isinf";
+        gPolyMathLibTable["copysign"] = "copysign";
     }
 
     virtual ~JuliaInstVisitor() {}
@@ -322,18 +319,18 @@ class JuliaInstVisitor : public TextInstVisitor {
     {
         // Special case
         if (inst->fZone == "0") {
-            *fOut << "declare!(ui_interface, :dummy, " << quote(inst->fKey)
-            << ", " << quote(inst->fValue) << ")";
+            *fOut << "declare!(ui_interface, :dummy, " << quote(inst->fKey) << ", "
+                  << quote(inst->fValue) << ")";
         } else {
-            *fOut << "declare!(ui_interface, :" << inst->fZone << ", "
-            << quote(inst->fKey) << ", " << quote(inst->fValue) << ")";
+            *fOut << "declare!(ui_interface, :" << inst->fZone << ", " << quote(inst->fKey) << ", "
+                  << quote(inst->fValue) << ")";
         }
         EndLine(' ');
     }
 
     virtual void visit(OpenboxInst* inst)
     {
-        string name;
+        std::string name;
         switch (inst->fOrient) {
             case OpenboxInst::kVerticalBox:
                 name = "openVerticalBox!(";
@@ -354,10 +351,10 @@ class JuliaInstVisitor : public TextInstVisitor {
         *fOut << "closeBox!(ui_interface)";
         tab(fTab, *fOut);
     }
-    
+
     virtual void visit(AddButtonInst* inst)
     {
-        string name;
+        std::string name;
         if (inst->fType == AddButtonInst::kDefaultButton) {
             name = "addButton!(";
         } else {
@@ -369,7 +366,7 @@ class JuliaInstVisitor : public TextInstVisitor {
 
     virtual void visit(AddSliderInst* inst)
     {
-        string name;
+        std::string name;
         switch (inst->fType) {
             case AddSliderInst::kHorizontal:
                 name = "addHorizontalSlider!(";
@@ -391,7 +388,7 @@ class JuliaInstVisitor : public TextInstVisitor {
 
     virtual void visit(AddBargraphInst* inst)
     {
-        string name;
+        std::string name;
         switch (inst->fType) {
             case AddBargraphInst::kHorizontal:
                 name = "addHorizontalBargraph!(";
@@ -411,11 +408,11 @@ class JuliaInstVisitor : public TextInstVisitor {
         // Not supported for now
         throw faustexception("ERROR : 'soundfile' primitive not yet supported for Julia\n");
     }
-    
+
     virtual void visit(Int32NumInst* inst) { *fOut << "Int32(" << inst->fNum << ")"; }
-    
+
     virtual void visit(Int64NumInst* inst) { *fOut << "Int64(" << inst->fNum << ")"; }
-    
+
     virtual void visit(Int32ArrayNumInst* inst)
     {
         char sep = '[';
@@ -425,7 +422,7 @@ class JuliaInstVisitor : public TextInstVisitor {
         }
         *fOut << ']';
     }
-    
+
     virtual void visit(FloatArrayNumInst* inst)
     {
         char sep = '[';
@@ -435,7 +432,7 @@ class JuliaInstVisitor : public TextInstVisitor {
         }
         *fOut << ']';
     }
-    
+
     virtual void visit(DoubleArrayNumInst* inst)
     {
         char sep = '[';
@@ -445,17 +442,18 @@ class JuliaInstVisitor : public TextInstVisitor {
         }
         *fOut << ']';
     }
-    
+
     virtual void visit(BinopInst* inst)
     {
         if (inst->fOpcode == kXOR) {
             *fOut << "xor(";
             inst->fInst1->accept(this);
             *fOut << ", ";
-             inst->fInst2->accept(this);
+            inst->fInst2->accept(this);
             *fOut << ")";
         } else {
-            // Operator prededence is not like C/C++, so for simplicity, we keep the fully parenthesized version
+            // Operator precedence is not like C/C++, so for simplicity, we keep the fully
+            // parenthesized version
             *fOut << "(";
             inst->fInst1->accept(this);
             *fOut << " ";
@@ -465,14 +463,14 @@ class JuliaInstVisitor : public TextInstVisitor {
             *fOut << ")";
         }
     }
-   
+
     virtual void visit(DeclareVarInst* inst)
     {
-        if (inst->fAddress->getAccess() & Address::kStaticStruct) {
-            *fOut << fTypeManager->generateType(inst->fType, inst->fAddress->getName());
+        if (inst->fAddress->isStaticStruct()) {
+            *fOut << fTypeManager->generateType(inst->fType, inst->getName());
             // Allocation is actually done in JuliaInitFieldsVisitor
         } else {
-            *fOut << fTypeManager->generateType(inst->fType, inst->fAddress->getName());
+            *fOut << fTypeManager->generateType(inst->fType, inst->getName());
             if (inst->fValue) {
                 *fOut << " = ";
                 inst->fValue->accept(this);
@@ -492,7 +490,7 @@ class JuliaInstVisitor : public TextInstVisitor {
             EndLine(' ');
         }
     }
-    
+
     virtual void visit(DropInst* inst)
     {
         if (inst->fResult) {
@@ -500,36 +498,39 @@ class JuliaInstVisitor : public TextInstVisitor {
             EndLine(' ');
         }
     }
-    
+
     virtual void visit(DeclareFunInst* inst)
     {
         // Already generated
         if (gFunctionSymbolTable.find(inst->fName) != gFunctionSymbolTable.end()) {
-           return;
+            return;
         } else {
-           gFunctionSymbolTable[inst->fName] = true;
+            gFunctionSymbolTable[inst->fName] = true;
         }
-        
+
         *fOut << "function " << inst->fName;
         generateFunDefArgs(inst);
         generateFunDefBody(inst);
     }
-    
+
     virtual void visit(DeclareBufferIterators* inst)
     {
         // Don't generate if no channels
-        if (inst->fNumChannels == 0) return;
-    
-        for (int i = 0; i < inst->fNumChannels; ++i) {
-            *fOut << inst->fBufferName1 << i << " = @inbounds @view " << inst->fBufferName2 << "[:, " << (i+1) << "]";
+        if (inst->fChannels == 0) {
+            return;
+        }
+
+        for (int i = 0; i < inst->fChannels; ++i) {
+            *fOut << inst->fBufferName1 << i << " = @inbounds @view " << inst->fBufferName2
+                  << "[:, " << (i + 1) << "]";
             tab(fTab, *fOut);
         }
     }
-    
+
     virtual void generateFunDefBody(DeclareFunInst* inst)
     {
         if (inst->fCode->fCode.size() == 0) {
-            *fOut << ") where {T}" << endl;  // Pure prototype
+            *fOut << ") where {T}" << std::endl;  // Pure prototype
         } else {
             // Function body
             *fOut << ") where {T}";
@@ -546,12 +547,12 @@ class JuliaInstVisitor : public TextInstVisitor {
     virtual void visit(NamedAddress* named)
     {
         // kStaticStruct are actually merged in the main DSP
-        if (named->getAccess() & Address::kStruct || named->getAccess() & Address::kStaticStruct) {
+        if (named->isStruct() || named->isStaticStruct()) {
             *fOut << "dsp.";
         }
         *fOut << named->fName;
     }
-    
+
     /*
     Indexed address can actually be values in an array or fields in a struct type
     */
@@ -560,26 +561,23 @@ class JuliaInstVisitor : public TextInstVisitor {
         indexed->fAddress->accept(this);
         DeclareStructTypeInst* struct_type = isStructType(indexed->getName());
         if (struct_type) {
-            Int32NumInst* field_index = static_cast<Int32NumInst*>(indexed->fIndex);
+            Int32NumInst* field_index = static_cast<Int32NumInst*>(indexed->getIndex());
             *fOut << "." << struct_type->fType->getName(field_index->fNum);
         } else {
             *fOut << "[";
-            Int32NumInst* field_index = dynamic_cast<Int32NumInst*>(indexed->fIndex);
+            Int32NumInst* field_index = dynamic_cast<Int32NumInst*>(indexed->getIndex());
             // Julia arrays start at 1
             if (field_index) {
                 *fOut << (field_index->fNum + 1) << "]";
             } else {
-                indexed->fIndex->accept(this);
+                indexed->getIndex()->accept(this);
                 *fOut << "+1]";
             }
         }
     }
 
-    virtual void visit(LoadVarAddressInst* inst)
-    {
-        faustassert(false);
-    }
-    
+    virtual void visit(LoadVarAddressInst* inst) { faustassert(false); }
+
     virtual void visit(StoreVarInst* inst)
     {
         inst->fAddress->accept(this);
@@ -587,7 +585,7 @@ class JuliaInstVisitor : public TextInstVisitor {
         inst->fValue->accept(this);
         EndLine(' ');
     }
-      
+
     virtual void visit(::CastInst* inst)
     {
         if (isIntType(inst->fType->getType())) {
@@ -600,39 +598,28 @@ class JuliaInstVisitor : public TextInstVisitor {
         *fOut << ")";
     }
 
-    // TODO : does not work, put this code in a function
-    virtual void visit(BitcastInst* inst)
-    {}
-    
+    virtual void visit(BitcastInst* inst) { faustassert(false); }
+
     virtual void visitCond(ValueInst* cond)
     {
         *fOut << "(";
         cond->accept(this);
         *fOut << " != 0)";
     }
-    
-    virtual void visit(Select2Inst* inst)
-    {
-        *fOut << "(";
-        visitCond(inst->fCond);
-        *fOut << " ? ";
-        inst->fThen->accept(this);
-        *fOut << " : ";
-        inst->fElse->accept(this);
-        *fOut << ")";
-    }
 
     // Generate standard funcall (not 'method' like funcall...)
     virtual void visit(FunCallInst* inst)
     {
-        string name = (gPolyMathLibTable.find(inst->fName) != gPolyMathLibTable.end()) ? gPolyMathLibTable[inst->fName] : inst->fName;
+        std::string name = (gPolyMathLibTable.find(inst->fName) != gPolyMathLibTable.end())
+                               ? gPolyMathLibTable[inst->fName]
+                               : inst->fName;
         // Function that mutate their arguments use the '!' syntax
-        *fOut << name << ((fMutateFun && inst->fArgs.size() > 0) ?  "!(" : "(");
+        *fOut << name << ((fMutateFun && inst->fArgs.size() > 0) ? "!(" : "(");
         // Compile parameters
         generateFunCallArgs(inst->fArgs.begin(), inst->fArgs.end(), inst->fArgs.size());
         *fOut << ")";
     }
-    
+
     virtual void visit(IfInst* inst)
     {
         *fOut << "if ";
@@ -655,11 +642,13 @@ class JuliaInstVisitor : public TextInstVisitor {
         }
         tab(fTab, *fOut);
     }
-  
+
     virtual void visit(ForLoopInst* inst)
     {
         // Don't generate empty loops...
-        if (inst->fCode->size() == 0) return;
+        if (inst->fCode->size() == 0) {
+            return;
+        }
 
         *fOut << "for ";
         fFinishLine = false;
@@ -677,14 +666,16 @@ class JuliaInstVisitor : public TextInstVisitor {
         *fOut << "end";
         tab(fTab, *fOut);
     }
-    
+
     virtual void visit(SimpleForLoopInst* inst)
     {
         // Don't generate empty loops...
-        if (inst->fCode->size() == 0) return;
-        
+        if (inst->fCode->size() == 0) {
+            return;
+        }
+
         *fOut << "@inbounds for " << inst->getName() << " in ";
-    
+
         if (inst->fReverse) {
             *fOut << "reverse(";
             Int32NumInst* lower_bound = dynamic_cast<Int32NumInst*>(inst->fLowerBound);
@@ -693,7 +684,8 @@ class JuliaInstVisitor : public TextInstVisitor {
             Int32NumInst* upper_bound = dynamic_cast<Int32NumInst*>(inst->fUpperBound);
             if (upper_bound) {
                 // If an Int32NumInst, we just generate it without any type information
-                // (see visit(Int32NumInst* inst) which adds type information that we don't want here)
+                // (see visit(Int32NumInst* inst) which adds type information that we don't want
+                // here)
                 *fOut << upper_bound->fNum;
             } else {
                 inst->fUpperBound->accept(this);
@@ -720,9 +712,8 @@ class JuliaInstVisitor : public TextInstVisitor {
         *fOut << "end";
         tab(fTab, *fOut);
     }
-    
+
     static void cleanup() { gFunctionSymbolTable.clear(); }
 };
 
 #endif
-

@@ -4,16 +4,16 @@
     Copyright (C) 2003-2018 GRAME, Centre National de Creation Musicale
     ---------------------------------------------------------------------
     This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation; either version 2.1 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+    GNU Lesser General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
+    You should have received a copy of the GNU Lesser General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -22,16 +22,16 @@
 #include "signalVisitor.hh"
 
 #include <cstdlib>
-#include <map>
 #include "Text.hh"
 #include "global.hh"
-#include "ppsig.hh"
 #include "property.hh"
 #include "signalVisitor.hh"
 #include "signals.hh"
 #include "sigtyperules.hh"
 #include "tlib.hh"
 #include "tree.hh"
+
+using namespace std;
 
 //-------------------------SignalVisitor-------------------------------
 // An identity transformation on signals. Can be used to test
@@ -40,9 +40,11 @@
 
 void SignalVisitor::visit(Tree sig)
 {
-    int    i;
-    double r;
-    Tree   c, sel, x, y, z, u, v, var, le, label, id, ff, largs, type, name, file, sf;
+    int     i;
+    int64_t i64;
+    double  r;
+    Tree size, gen, wi, ws, tbl, ri, c, sel, x, y, z, u, v, var, le, label, ff, largs, type, name,
+        file, sf;
 
     if (getUserData(sig)) {
         for (Tree b : sig->branches()) {
@@ -50,6 +52,8 @@ void SignalVisitor::visit(Tree sig)
         }
         return;
     } else if (isSigInt(sig, &i)) {
+        return;
+    } else if (isSigInt64(sig, &i64)) {
         return;
     } else if (isSigReal(sig, &r)) {
         return;
@@ -88,18 +92,18 @@ void SignalVisitor::visit(Tree sig)
     }
 
     // Tables
-    else if (isSigTable(sig, id, x, y)) {
-        self(x);
-        self(y);
+    else if (isSigWRTbl(sig, size, gen, wi, ws)) {
+        self(size);
+        self(gen);
+        if (wi != gGlobal->nil) {
+            // rwtable
+            self(wi);
+            self(ws);
+        }
         return;
-    } else if (isSigWRTbl(sig, id, x, y, z)) {
-        self(x);
-        self(y);
-        self(z);
-        return;
-    } else if (isSigRDTbl(sig, x, y)) {
-        self(x);
-        self(y);
+    } else if (isSigRDTbl(sig, tbl, ri)) {
+        self(tbl);
+        self(ri);
         return;
     }
 
@@ -147,8 +151,11 @@ void SignalVisitor::visit(Tree sig)
         return;
     }
 
-    // Int and Float Cast
+    // Int, Bit and Float Cast
     else if (isSigIntCast(sig, x)) {
+        self(x);
+        return;
+    } else if (isSigBitCast(sig, x)) {
         self(x);
         return;
     } else if (isSigFloatCast(sig, x)) {
@@ -204,12 +211,16 @@ void SignalVisitor::visit(Tree sig)
         return;
     }
 
+    else if (isSigRegister(sig, &i, x)) {
+        self(x);
+        return;
+    }
+
     else if (isNil(sig)) {
         // now nil can appear in table write instructions
         return;
     } else {
-        stringstream error;
-        error << __FILE__ << ":" << __LINE__ << " ERROR : unrecognized signal : " << *sig << endl;
-        throw faustexception(error.str());
+        cerr << __FILE__ << ":" << __LINE__ << " ASSERT : unrecognized signal : " << *sig << endl;
+        faustassert(false);
     }
 }

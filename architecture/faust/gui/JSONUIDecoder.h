@@ -39,6 +39,9 @@
 #ifdef _WIN32
 #include <windows.h>
 #define snprintf _snprintf
+#define STRDUP _strdup
+#else
+#define STRDUP strdup
 #endif
 
 //------------------------------------------------------------------------------------------
@@ -53,7 +56,7 @@
 typedef std::function<void(FAUSTFLOAT)> ReflectFunction;
 typedef std::function<FAUSTFLOAT()> ModifyFunction;
 
-struct ExtZoneParam {
+struct FAUST_API ExtZoneParam {
 
     virtual void reflectZone() = 0;
     virtual void modifyZone() = 0;
@@ -68,7 +71,7 @@ struct ExtZoneParam {
 
 // Templated decoder
 
-struct JSONUIDecoderBase
+struct FAUST_API JSONUIDecoderBase
 {
     virtual ~JSONUIDecoderBase()
     {}
@@ -96,10 +99,11 @@ struct JSONUIDecoderBase
     virtual void buildUserInterface(UI* ui_interface, char* memory_block) = 0;
     virtual void buildUserInterface(UIGlue* ui_interface, char* memory_block) = 0;
     virtual bool hasCompileOption(const std::string& option) = 0;
+    virtual std::string getCompileOption(const std::string& option) = 0;
 };
 
 template <typename REAL>
-struct JSONUIDecoderReal : public JSONUIDecoderBase {
+struct FAUST_API JSONUIDecoderReal : public JSONUIDecoderBase {
     
     struct ZoneParam : public ExtZoneParam {
         
@@ -316,7 +320,7 @@ struct JSONUIDecoderReal : public JSONUIDecoderBase {
         // MANDATORY: to be sure floats or double are correctly parsed
         char* tmp_local = setlocale(LC_ALL, nullptr);
         if (tmp_local != NULL) {
-            tmp_local = strdup(tmp_local);
+            tmp_local = STRDUP(tmp_local);
         }
         setlocale(LC_ALL, "C");
         
@@ -397,7 +401,7 @@ struct JSONUIDecoderReal : public JSONUIDecoderBase {
         // MANDATORY: to be sure floats or double are correctly parsed
         char* tmp_local = setlocale(LC_ALL, nullptr);
         if (tmp_local != NULL) {
-            tmp_local = strdup(tmp_local);
+            tmp_local = STRDUP(tmp_local);
         }
         setlocale(LC_ALL, "C");
         
@@ -467,7 +471,7 @@ struct JSONUIDecoderReal : public JSONUIDecoderBase {
         // MANDATORY: to be sure floats or double are correctly parsed
         char* tmp_local = setlocale(LC_ALL, nullptr);
         if (tmp_local != NULL) {
-            tmp_local = strdup(tmp_local);
+            tmp_local = STRDUP(tmp_local);
         }
         setlocale(LC_ALL, "C");
         
@@ -542,6 +546,20 @@ struct JSONUIDecoderReal : public JSONUIDecoderBase {
         return false;
     }
     
+    std::string getCompileOption(const std::string& option)
+    {
+        std::istringstream iss(fCompileOptions);
+        std::string token;
+        while (std::getline(iss, token, ' ')) {
+            if (token == option) {
+                std::string res;
+                iss >> res;
+                return res;
+            }
+        }
+        return "";
+    }
+    
     int getDSPSize() { return fDSPSize; }
     std::string getName() { return fName; }
     std::string getLibVersion() { return fVersion; }
@@ -564,7 +582,7 @@ struct JSONUIDecoderReal : public JSONUIDecoderBase {
 
 // FAUSTFLOAT templated decoder
 
-struct JSONUIDecoder : public JSONUIDecoderReal<FAUSTFLOAT>
+struct FAUST_API JSONUIDecoder : public JSONUIDecoderReal<FAUSTFLOAT>
 {
     JSONUIDecoder(const std::string& json):JSONUIDecoderReal<FAUSTFLOAT>(json)
     {}

@@ -30,7 +30,7 @@
  (GRAME, Copyright 2015-2019)
  
  Set of conversion objects used to map user interface values (for example a gui slider
- delivering values between 0 and 1) to faust values (for example a vslider between
+ delivering values between 0 and 1) to Faust values (for example a vslider between
  20 and 20000) using a log scale.
  
  -- Utilities
@@ -53,10 +53,10 @@
  
  -- ValueConverters used for accelerometers based on 3 points
  
- AccUpConverter(amin, amid, amax, fmin, fmid, fmax)        -- curve 0
- AccDownConverter(amin, amid, amax, fmin, fmid, fmax)      -- curve 1
- AccUpDownConverter(amin, amid, amax, fmin, fmid, fmax)    -- curve 2
- AccDownUpConverter(amin, amid, amax, fmin, fmid, fmax)    -- curve 3
+ UpConverter(amin, amid, amax, fmin, fmid, fmax)        -- curve 0
+ DownConverter(amin, amid, amax, fmin, fmid, fmax)      -- curve 1
+ UpDownConverter(amin, amid, amax, fmin, fmid, fmax)    -- curve 2
+ DownUpConverter(amin, amid, amax, fmin, fmid, fmax)    -- curve 3
  
  -- lists of ZoneControl are used to implement accelerometers metadata for each axes
  
@@ -74,6 +74,8 @@
 #include <vector>
 #include <assert.h>
 
+#include "faust/export.h"
+
 //--------------------------------------------------------------------------------------
 // Interpolator(lo,hi,v1,v2)
 // Maps a value x between lo and hi to a value y between v1 and v2
@@ -83,8 +85,8 @@
 // y = v1 - lo*coef + x*coef
 // y = offset + x*coef              with offset = v1 - lo*coef
 //--------------------------------------------------------------------------------------
-class Interpolator
-{
+class FAUST_API Interpolator {
+    
     private:
 
         //--------------------------------------------------------------------------------------
@@ -98,7 +100,6 @@ class Interpolator
             Range(double x, double y) : fLo(std::min<double>(x,y)), fHi(std::max<double>(x,y)) {}
             double operator()(double x) { return (x<fLo) ? fLo : (x>fHi) ? fHi : x; }
         };
-
 
         Range fRange;
         double fCoef;
@@ -135,8 +136,7 @@ class Interpolator
 // Interpolator3pt(lo,mi,hi,v1,vm,v2)
 // Map values between lo mid hi to values between v1 vm v2
 //--------------------------------------------------------------------------------------
-class Interpolator3pt
-{
+class FAUST_API Interpolator3pt {
 
     private:
 
@@ -162,8 +162,7 @@ class Interpolator3pt
 //--------------------------------------------------------------------------------------
 // Abstract ValueConverter class. Converts values between UI and Faust representations
 //--------------------------------------------------------------------------------------
-class ValueConverter // Identity by default
-{
+class FAUST_API ValueConverter {
 
     public:
 
@@ -176,7 +175,7 @@ class ValueConverter // Identity by default
 // A converter than can be updated
 //--------------------------------------------------------------------------------------
 
-class UpdatableValueConverter : public ValueConverter {
+class FAUST_API UpdatableValueConverter : public ValueConverter {
     
     protected:
         
@@ -200,8 +199,7 @@ class UpdatableValueConverter : public ValueConverter {
 //--------------------------------------------------------------------------------------
 // Linear conversion between ui and Faust values
 //--------------------------------------------------------------------------------------
-class LinearValueConverter : public ValueConverter
-{
+class FAUST_API LinearValueConverter : public ValueConverter {
     
     private:
         
@@ -224,8 +222,7 @@ class LinearValueConverter : public ValueConverter
 //--------------------------------------------------------------------------------------
 // Two segments linear conversion between ui and Faust values
 //--------------------------------------------------------------------------------------
-class LinearValueConverter2 : public UpdatableValueConverter
-{
+class FAUST_API LinearValueConverter2 : public UpdatableValueConverter {
     
     private:
     
@@ -260,25 +257,24 @@ class LinearValueConverter2 : public UpdatableValueConverter
 //--------------------------------------------------------------------------------------
 // Logarithmic conversion between ui and Faust values
 //--------------------------------------------------------------------------------------
-class LogValueConverter : public LinearValueConverter
-{
+class FAUST_API LogValueConverter : public LinearValueConverter {
 
     public:
-
+    
+        // We use DBL_EPSILON which is bigger than DBL_MIN (safer)
         LogValueConverter(double umin, double umax, double fmin, double fmax) :
-            LinearValueConverter(umin, umax, std::log(std::max<double>(DBL_MIN, fmin)), std::log(std::max<double>(DBL_MIN, fmax)))
+            LinearValueConverter(umin, umax, std::log(std::max<double>(DBL_EPSILON, fmin)), std::log(std::max<double>(DBL_EPSILON, fmax)))
         {}
 
         virtual double ui2faust(double x) { return std::exp(LinearValueConverter::ui2faust(x)); }
-        virtual double faust2ui(double x) { return LinearValueConverter::faust2ui(std::log(std::max<double>(x, DBL_MIN))); }
+        virtual double faust2ui(double x) { return LinearValueConverter::faust2ui(std::log(std::max<double>(DBL_EPSILON, x))); }
 
 };
 
 //--------------------------------------------------------------------------------------
 // Exponential conversion between ui and Faust values
 //--------------------------------------------------------------------------------------
-class ExpValueConverter : public LinearValueConverter
-{
+class FAUST_API ExpValueConverter : public LinearValueConverter {
 
     public:
 
@@ -295,8 +291,7 @@ class ExpValueConverter : public LinearValueConverter
 // Convert accelerometer or gyroscope values to Faust values
 // Using an Up curve (curve 0)
 //--------------------------------------------------------------------------------------
-class AccUpConverter : public UpdatableValueConverter
-{
+class FAUST_API UpConverter : public UpdatableValueConverter {
 
     private:
 
@@ -305,7 +300,7 @@ class AccUpConverter : public UpdatableValueConverter
 
     public:
 
-        AccUpConverter(double amin, double amid, double amax, double fmin, double fmid, double fmax) :
+        UpConverter(double amin, double amid, double amax, double fmin, double fmid, double fmax) :
             fA2F(amin,amid,amax,fmin,fmid,fmax),
             fF2A(fmin,fmid,fmax,amin,amid,amax)
         {}
@@ -315,7 +310,7 @@ class AccUpConverter : public UpdatableValueConverter
 
         virtual void setMappingValues(double amin, double amid, double amax, double fmin, double fmid, double fmax)
         {
-            //__android_log_print(ANDROID_LOG_ERROR, "Faust", "AccUpConverter update %f %f %f %f %f %f", amin,amid,amax,fmin,fmid,fmax);
+            //__android_log_print(ANDROID_LOG_ERROR, "Faust", "UpConverter update %f %f %f %f %f %f", amin,amid,amax,fmin,fmid,fmax);
             fA2F = Interpolator3pt(amin, amid, amax, fmin, fmid, fmax);
             fF2A = Interpolator3pt(fmin, fmid, fmax, amin, amid, amax);
         }
@@ -331,8 +326,7 @@ class AccUpConverter : public UpdatableValueConverter
 // Convert accelerometer or gyroscope values to Faust values
 // Using a Down curve (curve 1)
 //--------------------------------------------------------------------------------------
-class AccDownConverter : public UpdatableValueConverter
-{
+class FAUST_API DownConverter : public UpdatableValueConverter {
 
     private:
 
@@ -341,7 +335,7 @@ class AccDownConverter : public UpdatableValueConverter
 
     public:
 
-        AccDownConverter(double amin, double amid, double amax, double fmin, double fmid, double fmax) :
+        DownConverter(double amin, double amid, double amax, double fmin, double fmid, double fmax) :
             fA2F(amin,amid,amax,fmax,fmid,fmin),
             fF2A(fmin,fmid,fmax,amax,amid,amin)
         {}
@@ -351,7 +345,7 @@ class AccDownConverter : public UpdatableValueConverter
 
         virtual void setMappingValues(double amin, double amid, double amax, double fmin, double fmid, double fmax)
         {
-             //__android_log_print(ANDROID_LOG_ERROR, "Faust", "AccDownConverter update %f %f %f %f %f %f", amin,amid,amax,fmin,fmid,fmax);
+             //__android_log_print(ANDROID_LOG_ERROR, "Faust", "DownConverter update %f %f %f %f %f %f", amin,amid,amax,fmin,fmid,fmax);
             fA2F = Interpolator3pt(amin, amid, amax, fmax, fmid, fmin);
             fF2A = Interpolator3pt(fmin, fmid, fmax, amax, amid, amin);
         }
@@ -366,8 +360,7 @@ class AccDownConverter : public UpdatableValueConverter
 // Convert accelerometer or gyroscope values to Faust values
 // Using an Up-Down curve (curve 2)
 //--------------------------------------------------------------------------------------
-class AccUpDownConverter : public UpdatableValueConverter
-{
+class FAUST_API UpDownConverter : public UpdatableValueConverter {
 
     private:
 
@@ -376,7 +369,7 @@ class AccUpDownConverter : public UpdatableValueConverter
 
     public:
 
-        AccUpDownConverter(double amin, double amid, double amax, double fmin, double fmid, double fmax) :
+        UpDownConverter(double amin, double amid, double amax, double fmin, double fmid, double fmax) :
             fA2F(amin,amid,amax,fmin,fmax,fmin),
             fF2A(fmin,fmax,amin,amax)				// Special, pseudo inverse of a non monotonic function
         {}
@@ -386,7 +379,7 @@ class AccUpDownConverter : public UpdatableValueConverter
 
         virtual void setMappingValues(double amin, double amid, double amax, double fmin, double fmid, double fmax)
         {
-            //__android_log_print(ANDROID_LOG_ERROR, "Faust", "AccUpDownConverter update %f %f %f %f %f %f", amin,amid,amax,fmin,fmid,fmax);
+            //__android_log_print(ANDROID_LOG_ERROR, "Faust", "UpDownConverter update %f %f %f %f %f %f", amin,amid,amax,fmin,fmid,fmax);
             fA2F = Interpolator3pt(amin, amid, amax, fmin, fmax, fmin);
             fF2A = Interpolator(fmin, fmax, amin, amax);
         }
@@ -401,8 +394,7 @@ class AccUpDownConverter : public UpdatableValueConverter
 // Convert accelerometer or gyroscope values to Faust values
 // Using a Down-Up curve (curve 3)
 //--------------------------------------------------------------------------------------
-class AccDownUpConverter : public UpdatableValueConverter
-{
+class FAUST_API DownUpConverter : public UpdatableValueConverter {
 
     private:
 
@@ -411,7 +403,7 @@ class AccDownUpConverter : public UpdatableValueConverter
 
     public:
 
-        AccDownUpConverter(double amin, double amid, double amax, double fmin, double fmid, double fmax) :
+        DownUpConverter(double amin, double amid, double amax, double fmin, double fmid, double fmax) :
             fA2F(amin,amid,amax,fmax,fmin,fmax),
             fF2A(fmin,fmax,amin,amax)				// Special, pseudo inverse of a non monotonic function
         {}
@@ -421,7 +413,7 @@ class AccDownUpConverter : public UpdatableValueConverter
 
         virtual void setMappingValues(double amin, double amid, double amax, double fmin, double fmid, double fmax)
         {
-            //__android_log_print(ANDROID_LOG_ERROR, "Faust", "AccDownUpConverter update %f %f %f %f %f %f", amin,amid,amax,fmin,fmid,fmax);
+            //__android_log_print(ANDROID_LOG_ERROR, "Faust", "DownUpConverter update %f %f %f %f %f %f", amin,amid,amax,fmin,fmid,fmax);
             fA2F = Interpolator3pt(amin, amid, amax, fmax, fmin, fmax);
             fF2A = Interpolator(fmin, fmax, amin, amax);
         }
@@ -435,8 +427,7 @@ class AccDownUpConverter : public UpdatableValueConverter
 //--------------------------------------------------------------------------------------
 // Base class for ZoneControl
 //--------------------------------------------------------------------------------------
-class ZoneControl
-{
+class FAUST_API ZoneControl {
 
     protected:
 
@@ -464,8 +455,7 @@ class ZoneControl
 //--------------------------------------------------------------------------------------
 //  Useful to implement accelerometers metadata as a list of ZoneControl for each axes
 //--------------------------------------------------------------------------------------
-class ConverterZoneControl : public ZoneControl
-{
+class FAUST_API ConverterZoneControl : public ZoneControl {
 
     protected:
 
@@ -486,8 +476,7 @@ class ConverterZoneControl : public ZoneControl
 // Association of a zone and a four value converter, each one for each possible curve.
 // Useful to implement accelerometers metadata as a list of ZoneControl for each axes
 //--------------------------------------------------------------------------------------
-class CurveZoneControl : public ZoneControl
-{
+class FAUST_API CurveZoneControl : public ZoneControl {
 
     private:
 
@@ -499,16 +488,18 @@ class CurveZoneControl : public ZoneControl
         CurveZoneControl(FAUSTFLOAT* zone, int curve, double amin, double amid, double amax, double min, double init, double max) : ZoneControl(zone), fCurve(0)
         {
             assert(curve >= 0 && curve <= 3);
-            fValueConverters.push_back(new AccUpConverter(amin, amid, amax, min, init, max));
-            fValueConverters.push_back(new AccDownConverter(amin, amid, amax, min, init, max));
-            fValueConverters.push_back(new AccUpDownConverter(amin, amid, amax, min, init, max));
-            fValueConverters.push_back(new AccDownUpConverter(amin, amid, amax, min, init, max));
+            fValueConverters.push_back(new UpConverter(amin, amid, amax, min, init, max));
+            fValueConverters.push_back(new DownConverter(amin, amid, amax, min, init, max));
+            fValueConverters.push_back(new UpDownConverter(amin, amid, amax, min, init, max));
+            fValueConverters.push_back(new DownUpConverter(amin, amid, amax, min, init, max));
             fCurve = curve;
         }
+    
         virtual ~CurveZoneControl()
         {
             for (const auto& it : fValueConverters) { delete it; }
         }
+    
         void update(double v) const { if (fValueConverters[fCurve]->getActive()) *fZone = FAUSTFLOAT(fValueConverters[fCurve]->ui2faust(v)); }
 
         void setMappingValues(int curve, double amin, double amid, double amax, double min, double init, double max)
@@ -530,8 +521,7 @@ class CurveZoneControl : public ZoneControl
         int getCurve() { return fCurve; }
 };
 
-class ZoneReader
-{
+class FAUST_API ZoneReader {
 
     private:
 

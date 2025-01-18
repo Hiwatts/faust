@@ -4,16 +4,16 @@
     Copyright (C) 2003-2018 GRAME, Centre National de Creation Musicale
     ---------------------------------------------------------------------
     This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation; either version 2.1 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+    GNU Lesser General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
+    You should have received a copy of the GNU Lesser General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -42,7 +42,6 @@
 #include "names.hh"
 #include "ppsig.hh"
 #include "prim2.hh"
-#include "privatise.hh"
 #include "recursivness.hh"
 #include "sigprint.hh"
 #include "sigtype.hh"
@@ -50,6 +49,8 @@
 #include "simplify.hh"
 #include "tlib.hh"
 #include "xtended.hh"
+
+using namespace std;
 
 extern bool getSigListNickName(Tree t, Tree& id);
 
@@ -98,14 +99,16 @@ Lateq* DocCompiler::compileLateq(Tree L, Lateq* compiledEqn)
         Tree id;
         if (getSigNickname(sig, id)) {
             // cerr << "Documentator : compileLateq : NICKNAMEPROPERTY = " << tree2str(id) << endl;
-            fLateq->addOutputSigFormula(subst("$0(t) = $1", tree2str(id), CS(sig, priority), docT(i)));
+            fLateq->addOutputSigFormula(
+                subst("$0(t) = $1", tree2str(id), CS(sig, priority), docT(i)));
         } else {
             // cerr << "Documentator : compileLateq : NO NICKNAMEPROPERTY" << endl;
             if (fLateq->outputs() == 1) {
                 fLateq->addOutputSigFormula(subst("y(t) = $0", CS(sig, priority)));
                 gGlobal->gDocNoticeFlagMap["outputsig"] = true;
             } else {
-                fLateq->addOutputSigFormula(subst("$0(t) = $1", getFreshID("y"), CS(sig, priority)));
+                fLateq->addOutputSigFormula(
+                    subst("$0(t) = $1", getFreshID("y"), CS(sig, priority)));
                 gGlobal->gDocNoticeFlagMap["outputsigs"] = true;
             }
         }
@@ -194,8 +197,8 @@ string DocCompiler::generateCode(Tree sig, int priority)
     }
 
     else if (isSigDelay(sig, x, y)) {
-        printGCCall(sig, "generateDelay");
-        return generateDelay(sig, x, y, priority);
+        printGCCall(sig, "generateDelayAccess");
+        return generateDelayAccess(sig, x, y, priority);
     } else if (isSigPrefix(sig, x, y)) {
         printGCCall(sig, "generatePrefix");
         return generatePrefix(sig, x, y, priority);
@@ -278,12 +281,12 @@ string DocCompiler::generateCode(Tree sig, int priority)
     }
 
     else {
-        stringstream error;
-        error << "ERROR in d signal, unrecognized signal : " << *sig << endl;
-        throw faustexception(error.str());
+        cerr << "ASSERT : unrecognized signal : " << *sig << endl;
+        faustassert(false);
     }
-    faustassert(0);
-    return "error in generate code";
+    faustassert(false);
+    // Never reached
+    return "ASSERT : in generate code";
 }
 
 /**
@@ -313,8 +316,8 @@ void DocCompiler::printGCCall(Tree sig, const string& calledFunction)
 
 string DocCompiler::generateNumber(Tree sig, const string& exp)
 {
-    string      ctype, vname;
-    Occurences* o = fOccMarkup.retrieve(sig);
+    string       ctype, vname;
+    Occurrences* o = fOccMarkup.retrieve(sig);
 
     // check for number occuring in delays
     if (o->getMaxDelay() > 0) {
@@ -332,8 +335,8 @@ string DocCompiler::generateNumber(Tree sig, const string& exp)
 
 string DocCompiler::generateFConst(Tree sig, const string& file, const string& exp)
 {
-    string      ctype, vname;
-    Occurences* o = fOccMarkup.retrieve(sig);
+    string       ctype, vname;
+    Occurrences* o = fOccMarkup.retrieve(sig);
 
     if (o->getMaxDelay() > 0) {
         getTypedNames(getCertifiedSigType(sig), "r", ctype, vname);
@@ -356,8 +359,8 @@ string DocCompiler::generateFConst(Tree sig, const string& file, const string& e
 
 string DocCompiler::generateFVar(Tree sig, const string& file, const string& exp)
 {
-    string      ctype, vname;
-    Occurences* o = fOccMarkup.retrieve(sig);
+    string       ctype, vname;
+    Occurrences* o = fOccMarkup.retrieve(sig);
 
     if (o->getMaxDelay() > 0) {
         getTypedNames(getCertifiedSigType(sig), "r", ctype, vname);
@@ -433,7 +436,8 @@ string DocCompiler::generateOutput(Tree sig, const string& idx, const string& ar
 /// associative operations are + * | & xor
 static bool associative(int opcode)
 {
-    return (opcode == kAdd) || (opcode == kMul) || (opcode == kAND) || (opcode == kOR) || (opcode == kXOR);
+    return (opcode == kAdd) || (opcode == kMul) || (opcode == kAND) || (opcode == kOR) ||
+           (opcode == kXOR);
 }
 
 string DocCompiler::generateControl(Tree sig, Tree arg1, Tree arg2, int priority)
@@ -480,9 +484,10 @@ string DocCompiler::generateBinOp(Tree sig, int opcode, Tree arg1, Tree arg2, in
                 gGlobal->gDocNoticeFlagMap["intmult"] = true;
                 break;
             case kDiv:
-                op                                    = "\\oslash";
-                gGlobal->gDocNoticeFlagMap["intdiv"]  = true;
-                gGlobal->gDocNoticeFlagMap["intcast"] = true;  // "$normalize(int(i/j))$" in the notice.
+                op                                   = "\\oslash";
+                gGlobal->gDocNoticeFlagMap["intdiv"] = true;
+                gGlobal->gDocNoticeFlagMap["intcast"] =
+                    true;  // "$normalize(int(i/j))$" in the notice.
                 break;
             default:
                 op = gBinOpLateqTable[opcode]->fName;
@@ -552,8 +557,9 @@ static bool isVerySimpleFormula(Tree sig)
     double r;
     Tree   type, name, file, label, c, x, y, z;
 
-    return isSigInt(sig, &i) || isSigReal(sig, &r) || isSigInput(sig, &i) || isSigFConst(sig, type, name, file) ||
-           isSigButton(sig, label) || isSigCheckbox(sig, label) || isSigVSlider(sig, label, c, x, y, z) ||
+    return isSigInt(sig, &i) || isSigReal(sig, &r) || isSigInput(sig, &i) ||
+           isSigFConst(sig, type, name, file) || isSigButton(sig, label) ||
+           isSigCheckbox(sig, label) || isSigVSlider(sig, label, c, x, y, z) ||
            isSigHSlider(sig, label, c, x, y, z) || isSigNumEntry(sig, label, c, x, y, z);
 }
 
@@ -563,8 +569,8 @@ string DocCompiler::generateCacheCode(Tree sig, const string& exp)
 
     string vname, ctype, code, vectorname;
 
-    int         sharing = getSharingCount(sig);
-    Occurences* o       = fOccMarkup.retrieve(sig);
+    int          sharing = getSharingCount(sig);
+    Occurrences* o       = fOccMarkup.retrieve(sig);
 
     // check reentrance
     if (getCompiledExpression(sig, code)) {
@@ -579,13 +585,17 @@ string DocCompiler::generateCacheCode(Tree sig, const string& exp)
         }
         getTypedNames(getCertifiedSigType(sig), "r", ctype, vname);
         gGlobal->gDocNoticeFlagMap["recursigs"] = true;
-        // cerr << "- r : generateCacheCode : vame=\"" << vname << "\", for sig=\"" << ppsig(sig) << "\"" << endl;
+        // cerr << "- r : generateCacheCode : vame=\"" << vname << "\", for sig=\"" << ppsig(sig) <<
+        // "\"" << endl;
         if (sharing > 1) {
-            // cerr << "      generateCacheCode calls generateDelayVec(generateVariableStore) on vame=\"" << vname <<
+            // cerr << "      generateCacheCode calls generateDelayVec(generateVariableStore) on
+            // vame=\"" << vname <<
             // "\"" << endl;
-            return generateDelayVec(sig, generateVariableStore(sig, exp), ctype, vname, o->getMaxDelay());
+            return generateDelayVec(sig, generateVariableStore(sig, exp), ctype, vname,
+                                    o->getMaxDelay());
         } else {
-            // cerr << "      generateCacheCode calls generateDelayVec(exp) on vame=\"" << vname << "\"" << endl;
+            // cerr << "      generateCacheCode calls generateDelayVec(exp) on vame=\"" << vname <<
+            // "\"" << endl;
             return generateDelayVec(sig, exp, ctype, vname, o->getMaxDelay());
         }
     } else if (sharing == 1 || getVectorNameProperty(sig, vectorname) || isVerySimpleFormula(sig)) {
@@ -627,7 +637,8 @@ string DocCompiler::generateVariableStore(Tree sig, const string& exp)
                 return subst("$0(t)", vname);
             } else {
                 getTypedNames(t, "s", ctype, vname);
-                // cerr << "- generateVariableStore : \"" << subst("$0(t) = $1", vname, exp) << "\"" << endl;
+                // cerr << "- generateVariableStore : \"" << subst("$0(t) = $1", vname, exp) << "\""
+                // << endl;
                 fLateq->addStoreSigFormula(subst("$0(t) = $1", vname, exp));
                 gGlobal->gDocNoticeFlagMap["storedsigs"] = true;
                 setVectorNameProperty(sig, vname);
@@ -788,7 +799,8 @@ string DocCompiler::generateDocConstantTbl(Tree /*tbl*/, Tree size, Tree isig)
     gGlobal->gDocNoticeFlagMap["tablesigs"] = true;
 
     // add equation v[t] = isig(t)
-    fLateq->addRDTblSigFormula(subst("$0[t] = $1 \\condition{when $$t \\in [0,$2]$$} ", vname, init, T(n - 1)));
+    fLateq->addRDTblSigFormula(
+        subst("$0[t] = $1 \\condition{when $$t \\in [0,$2]$$} ", vname, init, T(n - 1)));
 
     // note that the name of the table can never be used outside an sigDocTableAccess
     return vname;
@@ -799,7 +811,8 @@ string DocCompiler::generateDocConstantTbl(Tree /*tbl*/, Tree size, Tree isig)
  */
 static bool isSeparator(char c)
 {
-    bool w = (((c >= 'a') && (c <= 'z')) || ((c >= 'A') && (c <= 'Z')) || ((c >= '0') && (c <= '9')));
+    bool w =
+        (((c >= 'a') && (c <= 'z')) || ((c >= 'A') && (c <= 'Z')) || ((c >= '0') && (c <= '9')));
     return !w;
 }
 
@@ -899,7 +912,8 @@ string DocCompiler::generateRecProj(Tree sig, Tree r, int i, int priority)
         faustassert(getVectorNameProperty(sig, vname));
         // cerr << "<-- generateRecProj vname : \"" << subst("$0(t)", vname) << "\"" << endl;
     } else {
-        // cerr << "(generateRecProj has already a vname : \"" << subst("$0(t)", vname) << "\")" << endl;
+        // cerr << "(generateRecProj has already a vname : \"" << subst("$0(t)", vname) << "\")" <<
+        // endl;
     }
     return subst("$0(t)", vname);
 }
@@ -966,8 +980,8 @@ string DocCompiler::generatePrefix(Tree sig, Tree x, Tree e, int priority)
     string vecname;
 
     if (!getVectorNameProperty(e, vecname)) {
-        cerr << "No vector name for : " << ppsig(e) << endl;
-        faustassert(0);
+        cerr << "ASSERT : no vector name for : " << ppsig(e, MAX_ERROR_SIZE) << endl;
+        faustassert(false);
     }
 
     string ltqPrefixDef;
@@ -1026,11 +1040,12 @@ string DocCompiler::generateXtended(Tree sig, int priority)
     }
 
     if (p->needCache()) {
-        // cerr << "!! generateXtended : <needCache> : calls generateCacheCode(sig, p->generateLateq(fLateq, args,
-        // types))" << endl;
+        // cerr << "!! generateXtended : <needCache> : calls generateCacheCode(sig,
+        // p->generateLateq(fLateq, args, types))" << endl;
         return generateCacheCode(sig, p->generateLateq(fLateq, args, types));
     } else {
-        // cerr << "!! generateXtended : <do not needCache> : calls p->generateLateq(fLateq, args, types)" << endl;
+        // cerr << "!! generateXtended : <do not needCache> : calls p->generateLateq(fLateq, args,
+        // types)" << endl;
         return p->generateLateq(fLateq, args, types);
     }
 }
@@ -1093,7 +1108,7 @@ bool DocCompiler::getVectorNameProperty(Tree sig, string& vecname)
  * @todo Priorités à revoir pour le parenthésage (associativité de - et /),
  * avec gBinOpLateqTable dans binop.cpp.
  */
-string DocCompiler::generateDelay(Tree sig, Tree exp, Tree delay, int priority)
+string DocCompiler::generateDelayAccess(Tree sig, Tree exp, Tree delay, int priority)
 {
     int    d;
     string vecname;
@@ -1101,15 +1116,15 @@ string DocCompiler::generateDelay(Tree sig, Tree exp, Tree delay, int priority)
     CS(exp, 0);  // ensure exp is compiled to have a vector name
 
     if (!getVectorNameProperty(exp, vecname)) {
-        cerr << "No vector name for : " << ppsig(exp) << endl;
-        faustassert(0);
+        cerr << "ASSERT : no vector name for : " << ppsig(exp, MAX_ERROR_SIZE) << endl;
+        faustassert(false);
     }
 
     if (isSigInt(delay, &d) && (d == 0)) {
-        // cerr << "@ generateDelay : d = " << d << endl;
+        // cerr << "@ generateDelayAccess : d = " << d << endl;
         return subst("$0(t)", vecname);
     } else {
-        // cerr << "@ generateDelay : d = " << d << endl;
+        // cerr << "@ generateDelayAccess : d = " << d << endl;
         return subst("$0(t\\!-\\!$1)", vecname, CS(delay, 7));
     }
 }
@@ -1118,7 +1133,8 @@ string DocCompiler::generateDelay(Tree sig, Tree exp, Tree delay, int priority)
  * Generate code for the delay mecchanism. The generated code depend of the
  * maximum delay attached to exp and the "less temporaries" switch
  */
-string DocCompiler::generateDelayVec(Tree sig, const string& exp, const string& ctype, const string& vname, int mxd)
+string DocCompiler::generateDelayVec(Tree sig, const string& exp, const string& ctype,
+                                     const string& vname, int mxd)
 {
     string s = generateDelayVecNoTemp(sig, exp, ctype, vname, mxd);
     if (getCertifiedSigType(sig)->variability() < kSamp) {
@@ -1131,8 +1147,8 @@ string DocCompiler::generateDelayVec(Tree sig, const string& exp, const string& 
 /**
  * Generate code for the delay mecchanism without using temporary variables
  */
-string DocCompiler::generateDelayVecNoTemp(Tree sig, const string& exp, const string& ctype, const string& vname,
-                                           int mxd)
+string DocCompiler::generateDelayVecNoTemp(Tree sig, const string& exp, const string& ctype,
+                                           const string& vname, int mxd)
 {
     faustassert(mxd > 0);
     // cerr << "  entering generateDelayVecNoTemp" << endl;
@@ -1151,7 +1167,8 @@ string DocCompiler::generateDelayVecNoTemp(Tree sig, const string& exp, const st
 /**
  * Generate code for the delay mecchanism without using temporary variables
  */
-void DocCompiler::generateDelayLine(const string& ctype, const string& vname, int mxd, const string& exp)
+void DocCompiler::generateDelayLine(const string& ctype, const string& vname, int mxd,
+                                    const string& exp)
 {
     // faustassert(mxd > 0);
     if (mxd == 0) {
@@ -1179,7 +1196,8 @@ void DocCompiler::generateDelayLine(const string& ctype, const string& vname, in
  */
 string DocCompiler::getUIDir(Tree pathname)
 {
-    // cerr << "Documentator : getUIDir : print(pathname, stdout) = "; print(pathname, stdout); cerr << endl;
+    // cerr << "Documentator : getUIDir : print(pathname, stdout) = "; print(pathname, stdout); cerr
+    // << endl;
     string s;
     Tree   dir = reverse(tl(pathname));
     while (!isNil(dir)) {
@@ -1233,13 +1251,14 @@ string DocCompiler::prepareBinaryUI(const string& name, Tree path)
  * @param[in]	tmax		The maximum UI value tree to convert.
  * @return		<string>	The LaTeX output string.
  */
-string DocCompiler::prepareIntervallicUI(const string& name, Tree path, Tree tcur, Tree tmin, Tree tmax)
+string DocCompiler::prepareIntervallicUI(const string& name, Tree path, Tree tcur, Tree tmin,
+                                         Tree tmax)
 {
     string label, unit, cur, min, max;
     getUIDocInfos(path, label, unit);
-    cur = docT(tree2float(tcur));
-    min = docT(tree2float(tmin));
-    max = docT(tree2float(tmax));
+    cur = docT(tree2double(tcur));
+    min = docT(tree2double(tmin));
+    max = docT(tree2double(tmax));
 
     string s = "";
     label    = (label.size() > 0) ? ("\\textsf{\"" + label + "\"} ") : "";
@@ -1274,7 +1293,9 @@ void DocCompiler::getUIDocInfos(Tree path, string& label, string& unit)
         const string&      key    = i->first;
         const set<string>& values = i->second;
         for (set<string>::const_iterator j = values.begin(); j != values.end(); j++) {
-            if (key == "unit") unit += *j;
+            if (key == "unit") {
+                unit += *j;
+            }
         }
     }
 }

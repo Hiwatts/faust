@@ -4,16 +4,16 @@
     Copyright (C) 2003-2018 GRAME, Centre National de Creation Musicale
     ---------------------------------------------------------------------
     This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation; either version 2.1 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+    GNU Lesser General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
+    You should have received a copy of the GNU Lesser General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  ************************************************************************
@@ -23,16 +23,13 @@
 
 #include <stdlib.h>
 #include <cstdlib>
-#include <map>
+
 #include "Text.hh"
 #include "global.hh"
 #include "ppsig.hh"
-#include "property.hh"
 #include "signals.hh"
-#include "sigtyperules.hh"
-#include "tlib.hh"
-#include "tree.hh"
-#include "treeTransform.hh"
+
+using namespace std;
 
 //-------------------------SignalIdentity-------------------------------
 // An identity transformation on signals. Can be used to test
@@ -42,20 +39,22 @@
 void SignalIdentity::traceEnter(Tree t)
 {
     tab(fIndent, cerr);
-    cerr << fMessage << ": " << ppsig(t) << endl;
+    cerr << fMessage << ": " << ppsig(t, MAX_ERROR_SIZE) << endl;
 }
 
 void SignalIdentity::traceExit(Tree t, Tree r)
 {
     tab(fIndent, cerr);
-    cerr << fMessage << ": " << ppsig(t) << " => " << ppsig(r) << endl;
+    cerr << fMessage << ": " << ppsig(t, MAX_ERROR_SIZE) << " => " << ppsig(r, MAX_ERROR_SIZE)
+         << endl;
 }
 
 Tree SignalIdentity::transformation(Tree sig)
 {
-    int    i;
-    double r;
-    Tree   c, sel, x, y, z, u, v, var, le, label, id, ff, largs, type, name, file, sf;
+    int     i;
+    int64_t i64;
+    double  r;
+    Tree    c, sel, w, x, y, z, u, v, var, le, label, ff, largs, type, name, file, sf;
 
     if (getUserData(sig)) {
         vector<Tree> newBranches;
@@ -64,6 +63,8 @@ Tree SignalIdentity::transformation(Tree sig)
         }
         return tree(sig->node(), newBranches);
     } else if (isSigInt(sig, &i)) {
+        return sig;
+    } else if (isSigInt64(sig, &i64)) {
         return sig;
     } else if (isSigReal(sig, &r)) {
         return sig;
@@ -93,10 +94,14 @@ Tree SignalIdentity::transformation(Tree sig)
     }
 
     // Tables
-    else if (isSigTable(sig, id, x, y)) {
-        return sigTable(id, self(x), self(y));
-    } else if (isSigWRTbl(sig, id, x, y, z)) {
-        return sigWRTbl(id, self(x), self(y), self(z));
+    else if (isSigWRTbl(sig, w, x, y, z)) {
+        if (y == gGlobal->nil) {
+            // rdtable
+            return sigWRTbl(self(w), self(x));
+        } else {
+            // rwtable
+            return sigWRTbl(self(w), self(x), self(y), self(z));
+        }
     } else if (isSigRDTbl(sig, x, y)) {
         return sigRDTbl(self(x), self(y));
     }
@@ -114,7 +119,7 @@ Tree SignalIdentity::transformation(Tree sig)
     else if (isSigSelect2(sig, sel, x, y)) {
         return sigSelect2(self(sel), self(x), self(y));
     }
-    
+
     // Table sigGen
     else if (isSigGen(sig, x)) {
         if (fVisitGen) {
@@ -134,13 +139,15 @@ Tree SignalIdentity::transformation(Tree sig)
         } else {
             // first visit
             rec(var, gGlobal->nil);  // to avoid infinite recursions
-            return rec(var, mapself(le));
+            return rec(var, mapselfRec(le));
         }
     }
 
     // Int and Float Cast
     else if (isSigIntCast(sig, x)) {
         return sigIntCast(self(x));
+    } else if (isSigBitCast(sig, x)) {
+        return sigBitCast(self(x));
     } else if (isSigFloatCast(sig, x)) {
         return sigFloatCast(self(x));
     }
@@ -185,20 +192,19 @@ Tree SignalIdentity::transformation(Tree sig)
     // Signal interval annotation
     else if (isSigAssertBounds(sig, x, y, z)) {
         return sigAssertBounds(self(x), self(y), self(z));
-    }
-
-    else if (isSigLowest(sig, x)) {
+    } else if (isSigLowest(sig, x)) {
         return sigLowest(self(x));
-    }
-    
-    else if (isSigHighest(sig, x)) {
+    } else if (isSigHighest(sig, x)) {
         return sigHighest(self(x));
     }
-    	
+
+    else if (isSigRegister(sig, &i, x)) {
+        return sigRegister(i, self(x));
+    }
+
     else {
-        stringstream error;
-        error << "ERROR : unrecognized signal : " << *sig << endl;
-        throw faustexception(error.str());
+        cerr << "ASSERT : unrecognized signal : " << *sig << endl;
+        faustassert(false);
     }
     return 0;
 }
